@@ -394,11 +394,13 @@ class QwenImageCheckpointModel(ModelLoader):
             if getattr(getattr(config, "default_settings", None), "fp8_storage", None) is True:
                 raise ValueError("Disable fp8_storage for Qwen Image 2.1 INT8 ConvRot; its weights are already INT8")
             try:
-                import comfy_kitchen  # noqa: F401
+                import comfy_kitchen
             except ImportError as e:
                 raise RuntimeError(
                     "Qwen Image 2.1 INT8 ConvRot requires comfy-kitchen. Install the qwen-int8 extra."
                 ) from e
+            if not comfy_kitchen.int8_attention_is_available(target_device):
+                raise RuntimeError("Qwen Image 2.1 INT8 attention is unavailable on this CUDA device")
         dequantized = _dequantize_comfyui_fp8(sd, model_dtype)
         if dequantized > 0:
             logger.info(f"Dequantized {dequantized} ComfyUI-quantized weights")
@@ -425,6 +427,13 @@ class QwenImageCheckpointModel(ModelLoader):
         load_state_dict_ignoring_extras(
             model, sd, source="Qwen-Image transformer checkpoint", assign=True, allow_missing=True
         )
+        if int8_layer_names:
+            from invokeai.backend.model_manager.load.model_loaders.qwen_image_2_1_int8_attention import (
+                QwenImage21Int8AttnProcessor,
+            )
+
+            for block in model.transformer_blocks:
+                block.attn.set_processor(QwenImage21Int8AttnProcessor())
         return model
 
 
