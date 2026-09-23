@@ -263,7 +263,9 @@ class QwenImageTextEncoderInvocation(BaseInvocation):
             text_model = getattr(text_encoder.model, "language_model", text_encoder.model)
             handle = text_model.norm.register_forward_hook(lambda module, args, output: args[0])
             try:
-                outputs = text_encoder(**forward_kwargs)
+                # Qwen Image conditions on hidden states, not next-token logits. Calling
+                # the base model skips the unused (and very large) lm_head projection.
+                outputs = text_encoder.model(**forward_kwargs)
             finally:
                 handle.remove()
             hidden_states = outputs.hidden_states[-1]

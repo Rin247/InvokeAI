@@ -570,6 +570,11 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
         # reading/dequantizing the checkpoint, when transient RAM use is highest.
         self._ram_cache.make_room(model_path.stat().st_size)
         sd = load_file(str(model_path))
+        if config.architecture == "qwen3_vl":
+            # Qwen Image consumes hidden states, never language-model logits. Drop the
+            # 151936 x 4096 output head before its costly INT8 -> BF16 expansion.
+            for key in [k for k in sd if isinstance(k, str) and k.startswith("lm_head.")]:
+                del sd[key]
 
         # Dequantize ComfyUI-style fp8 weights, then strip the now-unused quantization
         # metadata (`scale_input` is the activation scale ComfyUI's fp8 matmul kernels
@@ -632,13 +637,15 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
                 if config.architecture == "qwen3_vl"
                 else Qwen2_5_VLForConditionalGeneration(qwen_config)
             )
+            if config.architecture == "qwen3_vl":
+                del model.lm_head
 
         # Load weights; allow missing keys for tied lm_head and re-initialised buffers.
         load_result = model.load_state_dict(sd, strict=False, assign=True)
         log_unexpected_keys("Qwen VL text encoder checkpoint", load_result.unexpected_keys)
 
         # Tie lm_head ↔ embed_tokens if config requires it and lm_head wasn't loaded
-        if getattr(qwen_config, "tie_word_embeddings", False):
+        if getattr(qwen_config, "tie_word_embeddings", False) and hasattr(model, "lm_head"):
             try:
                 if hasattr(model, "lm_head") and model.lm_head.weight.is_meta:
                     language_model = getattr(model.model, "language_model", model.model)
