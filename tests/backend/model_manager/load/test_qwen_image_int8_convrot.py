@@ -1,11 +1,15 @@
 import pytest
 import torch
 
+from invokeai.backend.model_manager.load.model_cache.torch_module_autocast.custom_modules.qwen_image_int8_convrot_embedding import (
+    QwenImageInt8ConvRotEmbedding,
+)
 from invokeai.backend.model_manager.load.model_cache.torch_module_autocast.custom_modules.qwen_image_int8_convrot_linear import (
     QwenImageInt8ConvRotLinear,
 )
 from invokeai.backend.model_manager.load.model_loaders.qwen_image import (
     _extract_qwen_image_2_1_int8_convrot,
+    _replace_qwen_vl_int8_modules,
     _split_qwen_image_2_1_mlp_weights,
 )
 
@@ -50,3 +54,26 @@ def test_qwen_2_1_int8_linear_has_no_cpu_fallback() -> None:
     assert layer.state_dict()["weight"].dtype == torch.int8
     with pytest.raises(RuntimeError, match="requires a CUDA device"):
         layer(torch.zeros((1, 256), dtype=torch.bfloat16))
+
+
+def test_qwen_vl_int8_embedding_and_linear_are_loaded_without_dequantizing() -> None:
+    model = torch.nn.Module()
+    model.encoder = torch.nn.Module()
+    model.encoder.embed_tokens = torch.nn.Embedding(4, 256, device="meta")
+    model.encoder.proj = torch.nn.Linear(256, 2, bias=False, device="meta")
+    sd = {
+        "encoder.embed_tokens.weight": torch.zeros((4, 256), dtype=torch.int8),
+        "encoder.embed_tokens.weight_scale": torch.ones((4, 1), dtype=torch.float32),
+        "encoder.proj.weight": torch.zeros((2, 256), dtype=torch.int8),
+        "encoder.proj.weight_scale": torch.ones((2, 1), dtype=torch.float32),
+    }
+
+    _replace_qwen_vl_int8_modules(model, sd, {"encoder.embed_tokens", "encoder.proj"}, torch.bfloat16)
+    model.load_state_dict(sd, assign=True)
+
+    assert isinstance(model.encoder.embed_tokens, QwenImageInt8ConvRotEmbedding)
+    assert isinstance(model.encoder.proj, QwenImageInt8ConvRotLinear)
+    assert model.encoder.embed_tokens.weight.dtype == torch.int8
+    assert model.encoder.embed_tokens.weight_scale.dtype == torch.float32
+    with pytest.raises(RuntimeError, match="requires a CUDA device"):
+        model.encoder.embed_tokens(torch.tensor([1]))

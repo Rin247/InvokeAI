@@ -227,6 +227,31 @@ def _replace_qwen_image_2_1_int8_linears(model: torch.nn.Module, sd: dict, layer
         setattr(parent, child_name, QwenImageInt8ConvRotLinear(original, weight.shape, scale.shape))
 
 
+def _replace_qwen_vl_int8_modules(
+    model: torch.nn.Module, sd: dict, layer_names: set[str], model_dtype: torch.dtype
+) -> None:
+    from invokeai.backend.model_manager.load.model_cache.torch_module_autocast.custom_modules.qwen_image_int8_convrot_embedding import (
+        QwenImageInt8ConvRotEmbedding,
+    )
+    from invokeai.backend.model_manager.load.model_cache.torch_module_autocast.custom_modules.qwen_image_int8_convrot_linear import (
+        QwenImageInt8ConvRotLinear,
+    )
+
+    for layer_name in layer_names:
+        parent_name, child_name = layer_name.rsplit(".", 1)
+        parent = model.get_submodule(parent_name)
+        original = getattr(parent, child_name)
+        weight_shape = sd[layer_name + ".weight"].shape
+        scale_shape = sd[layer_name + ".weight_scale"].shape
+        if type(original) is torch.nn.Linear:
+            replacement = QwenImageInt8ConvRotLinear(original, weight_shape, scale_shape)
+        elif type(original) is torch.nn.Embedding:
+            replacement = QwenImageInt8ConvRotEmbedding(original, weight_shape, scale_shape, model_dtype)
+        else:
+            raise TypeError(f"Expected Linear or Embedding at {layer_name}, got {type(original).__name__}")
+        setattr(parent, child_name, replacement)
+
+
 @ModelLoaderRegistry.register(base=BaseModelType.QwenImage, type=ModelType.Main, format=ModelFormat.Diffusers)
 class QwenImageDiffusersModel(GenericDiffusersLoader):
     """Class to load Qwen Image Edit main models."""
@@ -576,6 +601,17 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
             for key in [k for k in sd if isinstance(k, str) and k.startswith("lm_head.")]:
                 del sd[key]
 
+        quant_sd, int8_layer_names = (
+            _extract_qwen_image_2_1_int8_convrot(sd) if config.architecture == "qwen3_vl" else ({}, set())
+        )
+        if int8_layer_names:
+            if target_device.type != "cuda":
+                raise RuntimeError("Qwen3-VL INT8 ConvRot requires CUDA")
+            try:
+                import comfy_kitchen.backends.cuda  # noqa: F401
+            except ImportError as e:
+                raise RuntimeError("Qwen3-VL INT8 ConvRot requires comfy-kitchen. Install the qwen-int8 extra.") from e
+
         # Dequantize ComfyUI-style fp8 weights, then strip the now-unused quantization
         # metadata (`scale_input` is the activation scale ComfyUI's fp8 matmul kernels
         # use at runtime — we run the encoder in bf16 after dequantization).
@@ -583,26 +619,34 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
         if dequantized_count > 0:
             logger.info(f"Dequantized {dequantized_count} ComfyUI-quantized weights")
         _strip_quantization_metadata(sd)
+        sd.update(quant_sd)
 
         if config.architecture == "qwen3_vl":
             remapped_sd: dict = {}
+            remapped_int8_names: set[str] = set()
+            int8_weight_keys = {name + ".weight" for name in int8_layer_names}
             for key, value in sd.items():
-                if not isinstance(key, str) or key == "lm_head.weight" or key.startswith("model.visual."):
-                    remapped_sd[key] = value
+                if not isinstance(key, str) or key.startswith("model.visual."):
+                    new_key = key
                 elif key.startswith("model.language_model."):
-                    remapped_sd[key] = value
+                    new_key = key
                 elif key.startswith("model."):
-                    remapped_sd["model.language_model." + key[len("model.") :]] = value
+                    new_key = "model.language_model." + key[len("model.") :]
                 else:
-                    remapped_sd[key] = value
+                    new_key = key
+                remapped_sd[new_key] = value
+                if key in int8_weight_keys:
+                    remapped_int8_names.add(new_key[: -len(".weight")])
             sd = remapped_sd
+            int8_layer_names = remapped_int8_names
         else:
             # ComfyUI single-file checkpoints use the legacy Qwen2.5-VL key layout.
             sd = _remap_qwen_vl_checkpoint_keys(sd)
 
         # Cast to compute dtype (skip integer/index tensors)
+        int8_scale_keys = {name + ".weight_scale" for name in int8_layer_names}
         for k in list(sd.keys()):
-            if sd[k].is_floating_point():
+            if k not in int8_scale_keys and sd[k].is_floating_point():
                 sd[k] = sd[k].to(model_dtype)
 
         # Fetch the architecture config from HuggingFace (small, ~5KB).
@@ -639,6 +683,8 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
             )
             if config.architecture == "qwen3_vl":
                 del model.lm_head
+                if int8_layer_names:
+                    _replace_qwen_vl_int8_modules(model, sd, int8_layer_names, model_dtype)
 
         # Load weights; allow missing keys for tied lm_head and re-initialised buffers.
         load_result = model.load_state_dict(sd, strict=False, assign=True)
