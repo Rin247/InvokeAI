@@ -5,6 +5,7 @@ from typing import Callable, ClassVar, Iterator, Optional
 import torch
 import torchvision.transforms as tv_transforms
 from diffusers.models.transformers.transformer_qwenimage import QwenImageTransformer2DModel
+from diffusers.schedulers.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from torchvision.transforms.functional import resize as tv_resize
 from tqdm import tqdm
 
@@ -161,6 +162,17 @@ class QwenImageDenoiseInvocation(BaseInvocation, WithMetadata, WithBoard):
         return cfg_scale
 
     @staticmethod
+    def _clip_qwen_image_2_1_schedule(
+        scheduler: FlowMatchEulerDiscreteScheduler, denoising_start: float, denoising_end: float
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        total = len(scheduler.timesteps)
+        start_idx = int(round(denoising_start * total))
+        end_idx = int(round(denoising_end * total))
+        # scheduler.step() reads the original sigma table, not these sliced views.
+        scheduler.set_begin_index(start_idx)
+        return scheduler.sigmas[start_idx : end_idx + 1], scheduler.timesteps[start_idx:end_idx]
+
+    @staticmethod
     def _pack_latents(
         latents: torch.Tensor, batch_size: int, num_channels: int, height: int, width: int
     ) -> torch.Tensor:
@@ -299,7 +311,6 @@ class QwenImageDenoiseInvocation(BaseInvocation, WithMetadata, WithBoard):
         import math
 
         import numpy as np
-        from diffusers.schedulers.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 
         # Try to load the scheduler config from the model's directory (Diffusers models
         # have a scheduler/ subdir). For GGUF models this path doesn't exist, so fall
@@ -634,15 +645,9 @@ class QwenImageDenoiseInvocation(BaseInvocation, WithMetadata, WithBoard):
             mu = image_seq_len * (max_shift - base_shift) / (max_seq - base_seq)
             mu += base_shift - base_seq * (max_shift - base_shift) / (max_seq - base_seq)
         scheduler.set_timesteps(sigmas=sigmas, mu=mu, device=device)
-        scheduler.set_begin_index(0)
-        sigmas_sched = scheduler.sigmas
-        timesteps_sched = scheduler.timesteps
-        if self.denoising_start > 0 or self.denoising_end < 1:
-            total = len(sigmas_sched) - 1
-            start_idx = int(round(self.denoising_start * total))
-            end_idx = int(round(self.denoising_end * total))
-            sigmas_sched = sigmas_sched[start_idx : end_idx + 1]
-            timesteps_sched = sigmas_sched[:-1] * scheduler.config.num_train_timesteps
+        sigmas_sched, timesteps_sched = self._clip_qwen_image_2_1_schedule(
+            scheduler, self.denoising_start, self.denoising_end
+        )
 
         if init_latents is not None:
             sigma = sigmas_sched[0].item()

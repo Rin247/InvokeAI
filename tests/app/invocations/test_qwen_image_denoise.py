@@ -1,8 +1,23 @@
 """Tests for the Qwen Image denoise invocation."""
 
 import pytest
+import torch
+from diffusers.schedulers.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 
 from invokeai.app.invocations.qwen_image_denoise import QwenImageDenoiseInvocation
+
+
+def test_qwen_image_2_1_img2img_starts_scheduler_at_clipped_sigma():
+    scheduler = FlowMatchEulerDiscreteScheduler()
+    scheduler.set_timesteps(4)
+
+    sigmas, timesteps = QwenImageDenoiseInvocation._clip_qwen_image_2_1_schedule(scheduler, 0.5, 1.0)
+
+    assert scheduler.begin_index == 2
+    assert torch.equal(sigmas, scheduler.sigmas[2:])
+    assert torch.equal(timesteps, scheduler.timesteps[2:])
+    result = scheduler.step(torch.ones(1), timesteps[0], torch.zeros(1), return_dict=False)[0]
+    assert torch.allclose(result, (sigmas[1] - sigmas[0]).reshape(1))
 
 
 class TestPrepareCfgScale:
