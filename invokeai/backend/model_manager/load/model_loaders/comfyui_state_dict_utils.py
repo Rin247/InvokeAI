@@ -10,7 +10,37 @@ Originally written for the Qwen Image loader; shared so the Wan loader doesn't
 need a second copy.
 """
 
+import json
+
 import torch
+
+
+def _build_convrot_hadamard(size: int) -> torch.Tensor:
+    """Comfy-kitchen's normalized regular Hadamard matrix (self-inverse)."""
+    if size not in (16, 64, 256):
+        raise ValueError(f"Unsupported ComfyUI ConvRot group size: {size}")
+    h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=torch.float32)
+    h = h4
+    while h.shape[0] < size:
+        h = torch.kron(h, h4)
+    return h / size**0.5
+
+
+def _dequantize_convrot_weight(
+    weight: torch.Tensor, scale: torch.Tensor, group_size: int, dtype: torch.dtype
+) -> torch.Tensor:
+    """Undo ComfyUI INT8 ConvRot in bounded row chunks, including large token embeddings."""
+    if weight.ndim != 2 or weight.shape[1] % group_size:
+        raise ValueError(f"Invalid ConvRot weight shape {tuple(weight.shape)} for group size {group_size}")
+    h = _build_convrot_hadamard(group_size)
+    output = torch.empty(weight.shape, dtype=dtype, device=weight.device)
+    for start in range(0, weight.shape[0], 2048):
+        end = min(start + 2048, weight.shape[0])
+        row_scale = scale if scale.numel() == 1 else scale[start:end]
+        rows = weight[start:end].to(torch.float32) * row_scale.to(torch.float32)
+        rows = rows.reshape(end - start, -1, group_size)
+        output[start:end] = torch.matmul(rows, h).reshape(end - start, -1).to(dtype)
+    return output
 
 
 def _strip_comfyui_prefix(sd: dict) -> dict:
@@ -63,6 +93,16 @@ def _dequantize_comfyui_fp8(sd: dict, compute_dtype: torch.dtype) -> int:
                 weight_key = scale_key[: -len(suffix)] + ".weight"
                 break
         if weight_key not in sd:
+            continue
+        quant_key = weight_key[: -len(".weight")] + ".comfy_quant"
+        quant_config = json.loads(bytes(sd[quant_key].tolist())) if quant_key in sd else None
+        if quant_config is not None and quant_config.get("format") != "int8_tensorwise":
+            raise ValueError(f"Unsupported ComfyUI quantization format: {quant_config.get('format')}")
+        if quant_config is not None and quant_config.get("convrot"):
+            sd[weight_key] = _dequantize_convrot_weight(
+                sd[weight_key], sd[scale_key], int(quant_config["convrot_groupsize"]), compute_dtype
+            )
+            count += 1
             continue
         weight = sd[weight_key].to(compute_dtype)
         scale = sd[scale_key].to(compute_dtype)

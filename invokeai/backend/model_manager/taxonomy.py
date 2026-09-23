@@ -200,6 +200,9 @@ class QwenImageVariantType(str, Enum):
     Edit = "edit"
     """Qwen Image Edit - image editing model with reference image support."""
 
+    V2_1 = "qwen_image_2_1"
+    """Qwen Image 2.1 - unified generation/editing with Qwen3-VL and 64-channel RGBA latents."""
+
 
 class WanVariantType(str, Enum):
     """Wan 2.2 model variants.

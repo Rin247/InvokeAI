@@ -56,6 +56,11 @@ class QwenImageDenoiseInvocation(BaseInvocation, WithMetadata, WithBoard):
         description="Reference image latents to guide generation. Encoded through the VAE.",
         input=Input.Connection,
     )
+    reference_latents_2_1: list[LatentsField] = InputField(
+        default=[],
+        description="Ordered reference image latents for Qwen Image 2.1.",
+        input=Input.Connection,
+    )
     # denoise_mask is used for image-to-image inpainting. Only the masked region is modified.
     denoise_mask: Optional[DenoiseMaskField] = InputField(
         default=None, description=FieldDescriptions.denoise_mask, input=Input.Connection
@@ -248,6 +253,8 @@ class QwenImageDenoiseInvocation(BaseInvocation, WithMetadata, WithBoard):
         device = TorchDevice.choose_torch_device()
 
         transformer_info = context.models.load(self.transformer.transformer)
+        if transformer_info.model.__class__.__name__ == "QwenImage21Transformer2DModel":
+            return self._run_diffusion_2_1(context, transformer_info)
         assert isinstance(transformer_info.model, QwenImageTransformer2DModel)
 
         # Load conditioning
@@ -322,7 +329,7 @@ class QwenImageDenoiseInvocation(BaseInvocation, WithMetadata, WithBoard):
             base_shift = scheduler.config.get("base_shift", 0.5)
             max_shift = scheduler.config.get("max_shift", 0.9)
             base_seq = scheduler.config.get("base_image_seq_len", 256)
-            max_seq = scheduler.config.get("max_image_seq_len", 4096)
+            max_seq = scheduler.config.get("max_image_seq_len", 8192)
             m = (max_shift - base_shift) / (max_seq - base_seq)
             b = base_shift - m * base_seq
             mu = image_seq_len * m + b
@@ -540,6 +547,213 @@ class QwenImageDenoiseInvocation(BaseInvocation, WithMetadata, WithBoard):
         latents = self._unpack_latents(latents, latent_height, latent_width)
         latents = latents.unsqueeze(2)
         return latents
+
+    def _load_qwen_image_2_1_conditioning(
+        self,
+        context: InvocationContext,
+        conditioning_name: str,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor]:
+        cond_data = context.conditioning.load(conditioning_name)
+        assert len(cond_data.conditionings) == 1
+        conditioning = cond_data.conditionings[0]
+        assert isinstance(conditioning, QwenImageConditioningInfo)
+        conditioning = conditioning.to(dtype=dtype, device=device)
+        if conditioning.image_pad_mask is None:
+            raise ValueError("Qwen Image 2.1 conditioning is missing its image token mask")
+        return conditioning.prompt_embeds, conditioning.prompt_embeds_mask, conditioning.image_pad_mask
+
+    def _run_diffusion_2_1(self, context: InvocationContext, transformer_info):
+        """Qwen Image 2.1's unpatched 64-channel, block-causal denoising path."""
+        import numpy as np
+        from diffusers import QwenImage21Transformer2DModel
+        from diffusers.models.transformers.transformer_qwenimage21 import QwenImage21KVCache
+        from diffusers.schedulers.scheduling_flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
+
+        inference_dtype = torch.bfloat16
+        device = TorchDevice.choose_torch_device()
+        transformer_model = transformer_info.model
+        assert isinstance(transformer_model, QwenImage21Transformer2DModel)
+
+        pos_embeds, pos_mask, pos_image_mask = self._load_qwen_image_2_1_conditioning(
+            context, self.positive_conditioning.conditioning_name, inference_dtype, device
+        )
+        if isinstance(self.cfg_scale, list):
+            use_cfg = self.negative_conditioning is not None and any(v > 1.0 for v in self.cfg_scale)
+        else:
+            use_cfg = self.negative_conditioning is not None and self.cfg_scale > 1.0
+        neg_embeds = neg_mask = neg_image_mask = None
+        if use_cfg and self.negative_conditioning is not None:
+            neg_embeds, neg_mask, neg_image_mask = self._load_qwen_image_2_1_conditioning(
+                context, self.negative_conditioning.conditioning_name, inference_dtype, device
+            )
+
+        vae_scale_factor = 16
+        latent_height = 2 * (self.height // (vae_scale_factor * 2))
+        latent_width = 2 * (self.width // (vae_scale_factor * 2))
+        channels = int(transformer_model.config.in_channels)
+
+        generator = torch.Generator(device="cpu").manual_seed(self.seed)
+        noise = torch.randn(
+            (1, channels, latent_height, latent_width),
+            generator=generator,
+            device="cpu",
+            dtype=torch.float32,
+        ).to(device=device, dtype=inference_dtype)
+        init_latents = context.tensors.load(self.latents.latents_name) if self.latents else None
+        if init_latents is not None:
+            init_latents = init_latents.to(device=device, dtype=inference_dtype)
+            if init_latents.dim() == 5:
+                init_latents = init_latents.squeeze(2)
+
+        model_path = context.models.get_absolute_path(context.models.get_config(self.transformer.transformer))
+        scheduler_path = model_path / "scheduler"
+        if scheduler_path.is_dir() and (scheduler_path / "scheduler_config.json").exists():
+            scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(str(scheduler_path), local_files_only=True)
+        else:
+            scheduler = FlowMatchEulerDiscreteScheduler(
+                use_dynamic_shifting=True,
+                base_shift=0.5,
+                max_shift=0.9,
+                base_image_seq_len=256,
+                max_image_seq_len=8192,
+                shift_terminal=0.02,
+                num_train_timesteps=1000,
+                time_shift_type="exponential",
+            )
+        sigmas = np.linspace(1.0, 1.0 / self.steps, self.steps).tolist()
+        image_seq_len = latent_height * latent_width
+        if self.shift is not None:
+            mu = math.log(self.shift)
+        else:
+            base_shift = scheduler.config.get("base_shift", 0.5)
+            max_shift = scheduler.config.get("max_shift", 0.9)
+            base_seq = scheduler.config.get("base_image_seq_len", 256)
+            max_seq = scheduler.config.get("max_image_seq_len", 4096)
+            mu = image_seq_len * (max_shift - base_shift) / (max_seq - base_seq)
+            mu += base_shift - base_seq * (max_shift - base_shift) / (max_seq - base_seq)
+        scheduler.set_timesteps(sigmas=sigmas, mu=mu, device=device)
+        scheduler.set_begin_index(0)
+        sigmas_sched = scheduler.sigmas
+        timesteps_sched = scheduler.timesteps
+        if self.denoising_start > 0 or self.denoising_end < 1:
+            total = len(sigmas_sched) - 1
+            start_idx = int(round(self.denoising_start * total))
+            end_idx = int(round(self.denoising_end * total))
+            sigmas_sched = sigmas_sched[start_idx : end_idx + 1]
+            timesteps_sched = sigmas_sched[:-1] * scheduler.config.num_train_timesteps
+
+        if init_latents is not None:
+            sigma = sigmas_sched[0].item()
+            latents_4d = sigma * noise + (1.0 - sigma) * init_latents
+        else:
+            if self.denoising_start > 1e-5:
+                raise ValueError("denoising_start should be 0 when initial latents are not provided")
+            latents_4d = noise
+        latents = latents_4d.flatten(2).transpose(1, 2)
+
+        ref_latents_packed = None
+        ref_shapes: list[tuple[int, int, int]] = []
+        references = self.reference_latents_2_1 or ([self.reference_latents] if self.reference_latents else [])
+        ref_patches = []
+        for reference in references:
+            ref = context.tensors.load(reference.latents_name).to(device=device, dtype=inference_dtype)
+            if ref.dim() == 5:
+                ref = ref.squeeze(2)
+            ref_shapes.append((1, ref.shape[-2], ref.shape[-1]))
+            ref_patches.append(ref.flatten(2).transpose(1, 2))
+        if ref_patches:
+            ref_latents_packed = torch.cat(ref_patches, dim=1)
+
+        img_shapes = [[*ref_shapes, (1, latent_height, latent_width)]]
+
+        def append_target_slots(mask: torch.Tensor) -> torch.Tensor:
+            target_slots = torch.ones((mask.shape[0], latents.shape[1] // 4), dtype=mask.dtype, device=mask.device)
+            return torch.cat([mask, target_slots], dim=1)
+
+        pos_image_mask = append_target_slots(pos_image_mask)
+        if neg_image_mask is not None:
+            neg_image_mask = append_target_slots(neg_image_mask)
+
+        cfg_scale = self._prepare_cfg_scale(len(timesteps_sched))
+        step_callback = self._build_step_callback(context)
+        inpaint_mask = self._prep_inpaint_mask(context, noise)
+        inpaint_extension = None
+        if inpaint_mask is not None:
+            assert init_latents is not None
+            inpaint_extension = RectifiedFlowInpaintExtension(
+                init_latents=init_latents,
+                inpaint_mask=inpaint_mask,
+                noise=noise,
+            )
+
+        transformer_config = context.models.get_config(self.transformer.transformer)
+        model_is_quantized = transformer_config.format in (ModelFormat.GGUFQuantized,)
+        with ExitStack() as exit_stack:
+            cached_weights, transformer = exit_stack.enter_context(transformer_info.model_on_device())
+            assert isinstance(transformer, QwenImage21Transformer2DModel)
+            exit_stack.enter_context(
+                LayerPatcher.apply_smart_model_patches(
+                    model=transformer,
+                    patches=self._lora_iterator(context),
+                    prefix=QWEN_IMAGE_EDIT_LORA_TRANSFORMER_PREFIX,
+                    dtype=inference_dtype,
+                    cached_weights=cached_weights,
+                    force_sidecar_patching=model_is_quantized,
+                )
+            )
+            pos_cache = QwenImage21KVCache(len(transformer.transformer_blocks))
+            neg_cache = QwenImage21KVCache(len(transformer.transformer_blocks)) if use_cfg else None
+            for step_idx, t in enumerate(tqdm(timesteps_sched)):
+                model_input = latents if ref_latents_packed is None else torch.cat([ref_latents_packed, latents], dim=1)
+                kv_mode = "extract" if step_idx == 0 else "cached"
+                timestep = t.expand(latents.shape[0]).to(inference_dtype) / 1000
+                with transformer.cache_context("cond"):
+                    noise_pred = transformer(
+                        hidden_states=model_input,
+                        encoder_hidden_states=pos_embeds,
+                        encoder_hidden_states_mask=pos_mask,
+                        timestep=timestep,
+                        img_shapes=img_shapes,
+                        img_mask=pos_image_mask,
+                        kv_cache=pos_cache,
+                        kv_cache_mode=kv_mode,
+                        return_dict=False,
+                    )[0][:, -latents.shape[1] :]
+                if use_cfg and neg_embeds is not None and neg_image_mask is not None:
+                    with transformer.cache_context("uncond"):
+                        neg_pred = transformer(
+                            hidden_states=model_input,
+                            encoder_hidden_states=neg_embeds,
+                            encoder_hidden_states_mask=neg_mask,
+                            timestep=timestep,
+                            img_shapes=img_shapes,
+                            img_mask=neg_image_mask,
+                            kv_cache=neg_cache,
+                            kv_cache_mode=kv_mode,
+                            return_dict=False,
+                        )[0][:, -latents.shape[1] :]
+                    noise_pred = neg_pred + cfg_scale[step_idx] * (noise_pred - neg_pred)
+                latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+                if inpaint_extension is not None:
+                    current_4d = latents.transpose(1, 2).reshape(1, channels, latent_height, latent_width)
+                    current_4d = inpaint_extension.merge_intermediate_latents_with_init_latents(
+                        current_4d, sigmas_sched[step_idx + 1].item()
+                    )
+                    latents = current_4d.flatten(2).transpose(1, 2)
+                preview = latents.transpose(1, 2).reshape(1, channels, latent_height, latent_width)
+                step_callback(
+                    PipelineIntermediateState(
+                        step=step_idx + 1,
+                        order=1,
+                        total_steps=len(timesteps_sched),
+                        timestep=int(t.item()),
+                        latents=preview,
+                    )
+                )
+
+        return latents.transpose(1, 2).reshape(1, channels, 1, latent_height, latent_width)
 
     def _build_step_callback(self, context: InvocationContext) -> Callable[[PipelineIntermediateState], None]:
         def step_callback(state: PipelineIntermediateState) -> None:

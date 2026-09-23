@@ -31921,6 +31921,11 @@ export type components = {
              */
             reference_latents?: components["schemas"]["LatentsField"] | null;
             /**
+             * @description Ordered reference image latents for Qwen Image 2.1.
+             * @default []
+             */
+            reference_latents_2_1?: components["schemas"]["LatentsField"][];
+            /**
              * @description A mask of the region to apply the denoising process to. Values of 0.0 represent the regions to be fully denoised, and 1.0 represent the regions to be preserved.
              * @default null
              */
@@ -32468,7 +32473,7 @@ export type components = {
          * @description Qwen Image model variants.
          * @enum {string}
          */
-        QwenImageVariantType: "generate" | "edit";
+        QwenImageVariantType: "generate" | "edit" | "qwen_image_2_1";
         /**
          * QwenVLEncoderField
          * @description Field for Qwen2.5-VL encoder used by Qwen Image Edit models.
@@ -32567,6 +32572,8 @@ export type components = {
              * @constant
              */
             format: "checkpoint";
+            /** @default qwen2_5_vl */
+            architecture: "qwen2_5_vl" | "qwen3_vl";
         };
         /**
          * QwenVLEncoder_Diffusers_Config
@@ -38731,6 +38738,8 @@ export type components = {
              * @constant
              */
             base: "qwen-image";
+            /** @description Qwen Image VAE variant */
+            variant: components["schemas"]["QwenImageVariantType"] | null;
             /**
              * Cpu Only
              * @description Whether this model should run on CPU only

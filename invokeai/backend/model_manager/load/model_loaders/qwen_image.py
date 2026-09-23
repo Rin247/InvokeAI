@@ -54,7 +54,7 @@ def _remap_qwen_vl_checkpoint_keys(sd: dict) -> dict:
 
     from transformers import Qwen2_5_VLForConditionalGeneration
 
-    key_mapping = Qwen2_5_VLForConditionalGeneration._checkpoint_conversion_mapping or {
+    key_mapping = getattr(Qwen2_5_VLForConditionalGeneration, "_checkpoint_conversion_mapping", None) or {
         r"^visual": "model.visual",
         r"^model(?!\.(language_model|visual))": "model.language_model",
     }
@@ -130,6 +130,53 @@ def _build_qwen_image_transformer_config(sd: dict, is_edit: bool) -> dict:
     return model_config
 
 
+def _build_qwen_image_2_1_transformer_config(sd: dict) -> dict:
+    """Infer the Qwen Image 2.1 transformer config from a single-file checkpoint."""
+
+    def _shape(t):
+        return t.tensor_shape if isinstance(t, GGMLTensor) else t.shape
+
+    num_layers = max(
+        (
+            int(key.split(".")[1]) + 1
+            for key in sd
+            if isinstance(key, str) and key.startswith("transformer_blocks.") and key.split(".")[1].isdigit()
+        ),
+        default=32,
+    )
+    img_in_shape = _shape(sd["img_in.weight"])
+    hidden_size, in_channels = int(img_in_shape[0]), int(img_in_shape[1])
+    head_dim = 128
+    context_in_dim = int(_shape(sd["txt_in.in_layer.weight"])[1])
+    out_channels = int(_shape(sd["proj_out.weight"])[0])
+    mlp_ratio = int(_shape(sd["transformer_blocks.0.img_mlp.gate_up.weight"])[0]) // (2 * hidden_size)
+    return {
+        "patch_size": 1,
+        "in_channels": in_channels,
+        "out_channels": out_channels,
+        "num_layers": num_layers,
+        "attention_head_dim": head_dim,
+        "num_attention_heads": hidden_size // head_dim,
+        "context_in_dim": context_in_dim,
+        "mlp_ratio": mlp_ratio,
+        "axes_dims_rope": (16, 56, 56),
+        "eps": 1e-6,
+        "causal_condition": True,
+    }
+
+
+def _split_qwen_image_2_1_mlp_weights(sd: dict) -> None:
+    """Comfy-Org combines SwiGLU gate and up projections; Diffusers stores them separately."""
+    for key in [k for k in sd if isinstance(k, str) and k.endswith(".img_mlp.gate_up.weight")]:
+        weight = sd.pop(key)
+        if isinstance(weight, GGMLTensor):
+            weight = weight.get_dequantized_tensor()
+        gate, up = weight.chunk(2, dim=0)
+        prefix = key[: -len("gate_up.weight")]
+        sd[prefix + "gate_layer.weight"] = gate.contiguous()
+        sd[prefix + "proj.weight"] = up.contiguous()
+
+
 @ModelLoaderRegistry.register(base=BaseModelType.QwenImage, type=ModelType.Main, format=ModelFormat.Diffusers)
 class QwenImageDiffusersModel(GenericDiffusersLoader):
     """Class to load Qwen Image Edit main models."""
@@ -146,6 +193,10 @@ class QwenImageDiffusersModel(GenericDiffusersLoader):
             raise Exception("A submodel type must be provided when loading main pipelines.")
 
         model_path = Path(config.path)
+        if getattr(config, "variant", None) == QwenImageVariantType.V2_1 and submodel_type == SubModelType.Tokenizer:
+            from transformers import Qwen3VLProcessor
+
+            return Qwen3VLProcessor.from_pretrained(model_path / "processor", local_files_only=True)
         load_class = self.get_hf_load_class(model_path, submodel_type)
         repo_variant = config.repo_variant if isinstance(config, Diffusers_Config_Base) else None
         variant = repo_variant.value if repo_variant else None
@@ -201,7 +252,7 @@ class QwenImageGGUFCheckpointModel(ModelLoader):
         )
 
     def _load_from_singlefile(self, config: AnyModelConfig) -> AnyModel:
-        from diffusers import QwenImageTransformer2DModel
+        from diffusers import QwenImage21Transformer2DModel, QwenImageTransformer2DModel
 
         if not isinstance(config, Main_GGUF_QwenImage_Config):
             raise TypeError(f"Expected Main_GGUF_QwenImage_Config, got {type(config).__name__}.")
@@ -213,11 +264,20 @@ class QwenImageGGUFCheckpointModel(ModelLoader):
         sd = gguf_sd_loader(model_path, compute_dtype=compute_dtype)
         sd = _strip_comfyui_prefix(sd)
 
+        is_2_1 = getattr(config, "variant", None) == QwenImageVariantType.V2_1
         is_edit = getattr(config, "variant", None) == QwenImageVariantType.Edit
-        model_config = _build_qwen_image_transformer_config(sd, is_edit=is_edit)
+        model_config = (
+            _build_qwen_image_2_1_transformer_config(sd)
+            if is_2_1
+            else _build_qwen_image_transformer_config(sd, is_edit=is_edit)
+        )
+        if is_2_1:
+            _split_qwen_image_2_1_mlp_weights(sd)
 
         with accelerate.init_empty_weights():
-            model = QwenImageTransformer2DModel(**model_config)
+            model = (
+                QwenImage21Transformer2DModel(**model_config) if is_2_1 else QwenImageTransformer2DModel(**model_config)
+            )
 
         load_state_dict_ignoring_extras(
             model, sd, source="Qwen-Image transformer checkpoint", assign=True, allow_missing=True
@@ -250,7 +310,7 @@ class QwenImageCheckpointModel(ModelLoader):
         )
 
     def _load_from_singlefile(self, config: AnyModelConfig) -> AnyModel:
-        from diffusers import QwenImageTransformer2DModel
+        from diffusers import QwenImage21Transformer2DModel, QwenImageTransformer2DModel
         from safetensors.torch import load_file
 
         from invokeai.backend.util.logging import InvokeAILogger
@@ -272,11 +332,20 @@ class QwenImageCheckpointModel(ModelLoader):
             logger.info(f"Dequantized {dequantized} ComfyUI-quantized weights")
         _strip_quantization_metadata(sd)
 
+        is_2_1 = getattr(config, "variant", None) == QwenImageVariantType.V2_1
         is_edit = getattr(config, "variant", None) == QwenImageVariantType.Edit
-        model_config = _build_qwen_image_transformer_config(sd, is_edit=is_edit)
+        model_config = (
+            _build_qwen_image_2_1_transformer_config(sd)
+            if is_2_1
+            else _build_qwen_image_transformer_config(sd, is_edit=is_edit)
+        )
+        if is_2_1:
+            _split_qwen_image_2_1_mlp_weights(sd)
 
         with accelerate.init_empty_weights():
-            model = QwenImageTransformer2DModel(**model_config)
+            model = (
+                QwenImage21Transformer2DModel(**model_config) if is_2_1 else QwenImageTransformer2DModel(**model_config)
+            )
 
         # Dequantized fp8 weights are already at model_dtype; this only casts any remaining
         # non-quantized float weights (e.g. a plain fp16/fp32 checkpoint) to the compute dtype
@@ -342,6 +411,7 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
     """
 
     DEFAULT_HF_REPO = "Qwen/Qwen2.5-VL-7B-Instruct"
+    QWEN3_HF_REPO = "Qwen/Qwen-Image-2.1"
 
     def _load_model(
         self,
@@ -353,7 +423,7 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
 
         match submodel_type:
             case SubModelType.Tokenizer:
-                return self._load_tokenizer_with_offline_fallback()
+                return self._load_tokenizer_with_offline_fallback(config)
             case SubModelType.TextEncoder:
                 return self._load_text_encoder_from_singlefile(config)
 
@@ -362,33 +432,39 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
             f"Received: {submodel_type.value if submodel_type else 'None'}"
         )
 
-    def _load_tokenizer_with_offline_fallback(self) -> AnyModel:
-        from transformers import AutoTokenizer
+    def _repo_for_config(self, config: QwenVLEncoder_Checkpoint_Config) -> str:
+        return self.QWEN3_HF_REPO if config.architecture == "qwen3_vl" else self.DEFAULT_HF_REPO
+
+    def _load_tokenizer_with_offline_fallback(self, config: QwenVLEncoder_Checkpoint_Config) -> AnyModel:
+        from transformers import AutoTokenizer, Qwen3VLProcessor
 
         from invokeai.backend.util.logging import InvokeAILogger
 
         logger = InvokeAILogger.get_logger(self.__class__.__name__)
 
+        repo = self._repo_for_config(config)
+        load_class = Qwen3VLProcessor if config.architecture == "qwen3_vl" else AutoTokenizer
+        subfolder = "processor" if config.architecture == "qwen3_vl" else None
         try:
-            return AutoTokenizer.from_pretrained(self.DEFAULT_HF_REPO, local_files_only=True)
+            return load_class.from_pretrained(repo, subfolder=subfolder, local_files_only=True)
         except OSError:
             logger.info(
                 f"Tokenizer for single-file Qwen VL encoder not found in HuggingFace cache; "
-                f"downloading from {self.DEFAULT_HF_REPO} (one-time, requires network access)."
+                f"downloading from {repo} (one-time, requires network access)."
             )
             try:
-                return AutoTokenizer.from_pretrained(self.DEFAULT_HF_REPO)
+                return load_class.from_pretrained(repo, subfolder=subfolder)
             except OSError as e:
                 raise RuntimeError(
                     f"Failed to load Qwen VL tokenizer. Single-file Qwen VL encoder checkpoints do not "
-                    f"include the tokenizer; it must be downloaded from HuggingFace ({self.DEFAULT_HF_REPO}) "
+                    f"include the tokenizer; it must be downloaded from HuggingFace ({repo}) "
                     f"on first use. Either restore network access, or install the encoder in the "
                     f"diffusers folder layout (text_encoder/ + tokenizer/) instead. Original error: {e}"
                 ) from e
 
     def _load_text_encoder_from_singlefile(self, config: QwenVLEncoder_Checkpoint_Config) -> AnyModel:
         from safetensors.torch import load_file
-        from transformers import AutoConfig, Qwen2_5_VLForConditionalGeneration
+        from transformers import AutoConfig, Qwen2_5_VLForConditionalGeneration, Qwen3VLForConditionalGeneration
 
         from invokeai.backend.util.logging import InvokeAILogger
 
@@ -409,10 +485,21 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
             logger.info(f"Dequantized {dequantized_count} ComfyUI-quantized weights")
         _strip_quantization_metadata(sd)
 
-        # ComfyUI single-file checkpoints use the legacy Qwen2.5-VL key layout
-        # (`visual.X`, `model.X`); remap to the `model.visual.X` / `model.language_model.X`
-        # layout transformers expects. See `_remap_qwen_vl_checkpoint_keys` for details.
-        sd = _remap_qwen_vl_checkpoint_keys(sd)
+        if config.architecture == "qwen3_vl":
+            remapped_sd: dict = {}
+            for key, value in sd.items():
+                if not isinstance(key, str) or key == "lm_head.weight" or key.startswith("model.visual."):
+                    remapped_sd[key] = value
+                elif key.startswith("model.language_model."):
+                    remapped_sd[key] = value
+                elif key.startswith("model."):
+                    remapped_sd["model.language_model." + key[len("model.") :]] = value
+                else:
+                    remapped_sd[key] = value
+            sd = remapped_sd
+        else:
+            # ComfyUI single-file checkpoints use the legacy Qwen2.5-VL key layout.
+            sd = _remap_qwen_vl_checkpoint_keys(sd)
 
         # Cast to compute dtype (skip integer/index tensors)
         for k in list(sd.keys()):
@@ -421,20 +508,22 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
 
         # Fetch the architecture config from HuggingFace (small, ~5KB).
         # Offline fallback: tries cache first, downloads only if missing.
+        repo = self._repo_for_config(config)
+        subfolder = "text_encoder" if config.architecture == "qwen3_vl" else None
         try:
-            qwen_config = AutoConfig.from_pretrained(self.DEFAULT_HF_REPO, local_files_only=True)
+            qwen_config = AutoConfig.from_pretrained(repo, subfolder=subfolder, local_files_only=True)
         except OSError:
             logger.info(
                 f"Architecture config for single-file Qwen VL encoder not found in HuggingFace cache; "
-                f"downloading from {self.DEFAULT_HF_REPO} (one-time, ~5KB, requires network access)."
+                f"downloading from {repo} (one-time, ~5KB, requires network access)."
             )
             try:
-                qwen_config = AutoConfig.from_pretrained(self.DEFAULT_HF_REPO)
+                qwen_config = AutoConfig.from_pretrained(repo, subfolder=subfolder)
             except OSError as e:
                 raise RuntimeError(
                     f"Failed to load Qwen VL architecture config. Single-file Qwen VL encoder checkpoints "
                     f"do not include the model config; it must be downloaded from HuggingFace "
-                    f"({self.DEFAULT_HF_REPO}) on first use. Either restore network access, or install the "
+                    f"({repo}) on first use. Either restore network access, or install the "
                     f"encoder in the diffusers folder layout (text_encoder/config.json + tokenizer/) "
                     f"instead. Original error: {e}"
                 ) from e
@@ -444,17 +533,22 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
         self._ram_cache.make_room(new_sd_size)
 
         with accelerate.init_empty_weights():
-            model = Qwen2_5_VLForConditionalGeneration(qwen_config)
+            model = (
+                Qwen3VLForConditionalGeneration(qwen_config)
+                if config.architecture == "qwen3_vl"
+                else Qwen2_5_VLForConditionalGeneration(qwen_config)
+            )
 
         # Load weights; allow missing keys for tied lm_head and re-initialised buffers.
         load_result = model.load_state_dict(sd, strict=False, assign=True)
-        log_unexpected_keys("Qwen2.5-VL text encoder checkpoint", load_result.unexpected_keys)
+        log_unexpected_keys("Qwen VL text encoder checkpoint", load_result.unexpected_keys)
 
         # Tie lm_head ↔ embed_tokens if config requires it and lm_head wasn't loaded
         if getattr(qwen_config, "tie_word_embeddings", False):
             try:
                 if hasattr(model, "lm_head") and model.lm_head.weight.is_meta:
-                    model.lm_head.weight = model.model.embed_tokens.weight
+                    language_model = getattr(model.model, "language_model", model.model)
+                    model.lm_head.weight = language_model.embed_tokens.weight
                 else:
                     model.tie_weights()
             except AttributeError:

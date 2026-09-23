@@ -38,6 +38,12 @@ def _has_qwen_vl_keys(keys: Iterable[str]) -> bool:
     return False
 
 
+def _has_qwen3_vl_keys(keys: Iterable[str]) -> bool:
+    """A ComfyUI Qwen3-VL checkpoint has both ``model.layers`` and ``model.visual`` weights."""
+    keys = list(keys)
+    return any(k.startswith("model.layers.") for k in keys) and any(k.startswith("model.visual.") for k in keys)
+
+
 def _read_safetensors_keys(path: Path) -> list[str]:
     """Read only the key index from a safetensors file without loading tensor data.
 
@@ -129,6 +135,7 @@ class QwenVLEncoder_Checkpoint_Config(Checkpoint_Config_Base, Config_Base):
     base: Literal[BaseModelType.Any] = Field(default=BaseModelType.Any)
     type: Literal[ModelType.QwenVLEncoder] = Field(default=ModelType.QwenVLEncoder)
     format: Literal[ModelFormat.Checkpoint] = Field(default=ModelFormat.Checkpoint)
+    architecture: Literal["qwen2_5_vl", "qwen3_vl"] = Field(default="qwen2_5_vl")
 
     @classmethod
     def from_model_on_disk(cls, mod: ModelOnDisk, override_fields: dict[str, Any]) -> Self:
@@ -148,7 +155,9 @@ class QwenVLEncoder_Checkpoint_Config(Checkpoint_Config_Base, Config_Base):
         except Exception as e:
             raise NotAMatchError(f"could not read safetensors header: {e}") from e
 
-        if not _has_qwen_vl_keys(keys):
+        is_qwen3_vl = _has_qwen3_vl_keys(keys)
+        if not (_has_qwen_vl_keys(keys) or is_qwen3_vl):
             raise NotAMatchError("state dict does not look like a Qwen2.5-VL/Qwen2-VL checkpoint")
 
-        return cls(**override_fields)
+        architecture = override_fields.pop("architecture", None) or ("qwen3_vl" if is_qwen3_vl else "qwen2_5_vl")
+        return cls(**override_fields, architecture=architecture)

@@ -131,7 +131,8 @@ def patch_qwen_image_vae_tiling(vae: QwenImageCompatibleVAE, tile_size: int | No
     )
     try:
         if tile_size is None:
-            vae.disable_tiling()
+            # Qwen Image 2.1 exposes the same tiling state but no disable_tiling() method.
+            vae.use_tiling = False
         else:
             stride = _tile_stride_for(tile_size)
             vae.enable_tiling(

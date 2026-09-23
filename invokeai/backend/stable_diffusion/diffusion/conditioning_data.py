@@ -119,7 +119,7 @@ class Ideogram4ConditioningInfo:
 
 @dataclass
 class QwenImageConditioningInfo:
-    """Qwen Image Edit conditioning information from Qwen2.5-VL encoder."""
+    """Qwen Image conditioning information from its vision-language encoder."""
 
     prompt_embeds: torch.Tensor
     """Text/image embeddings from Qwen2.5-VL encoder. Shape: (batch_size, seq_len, hidden_size)."""
@@ -127,10 +127,15 @@ class QwenImageConditioningInfo:
     prompt_embeds_mask: torch.Tensor | None = None
     """Attention mask for prompt_embeds. Shape: (batch_size, seq_len). 1 for valid, 0 for padding."""
 
+    image_pad_mask: torch.Tensor | None = None
+    """Positions occupied by vision tokens (Qwen Image 2.1 only)."""
+
     def to(self, device: torch.device | None = None, dtype: torch.dtype | None = None):
         self.prompt_embeds = self.prompt_embeds.to(device=device, dtype=dtype)
         if self.prompt_embeds_mask is not None:
             self.prompt_embeds_mask = self.prompt_embeds_mask.to(device=device)
+        if self.image_pad_mask is not None:
+            self.image_pad_mask = self.image_pad_mask.to(device=device)
         return self
 
 

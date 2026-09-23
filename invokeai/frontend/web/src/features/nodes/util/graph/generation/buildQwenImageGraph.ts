@@ -39,7 +39,7 @@ const log = logger('system');
 
 /**
  * Determine whether the given model config represents a Qwen Image Edit model.
- * Only edit-variant models should use reference images for conditioning.
+ * Edit models and the unified Qwen Image 2.1 model use reference images for conditioning.
  * Generate (txt2img) models should never receive reference images, even if
  * they exist in state from a previous edit session.
  */
@@ -47,7 +47,7 @@ export const isQwenImageEditModel = (model: { variant?: string | null } | null):
   if (!model) {
     return false;
   }
-  return 'variant' in model && model.variant === 'edit';
+  return 'variant' in model && (model.variant === 'edit' || model.variant === 'qwen_image_2_1');
 };
 
 /**
@@ -92,10 +92,14 @@ export const buildQwenImageGraph = async (arg: GraphBuilderArg): Promise<GraphBu
   const model = selectMainModelConfig(state);
   assert(model, 'No model selected');
   assert(model.base === 'qwen-image', 'Selected model is not a Qwen Image Edit model');
+  const isQwenImage21 = model.variant === 'qwen_image_2_1';
 
   const params = selectParamsSlice(state);
 
   const { cfgScale: cfg_scale, steps, pidMode } = params;
+  if (isQwenImage21 && pidMode !== 'off') {
+    throw new UnsupportedGenerationModeError('PiD decoding is not supported for Qwen Image 2.1. Turn PiD off.');
+  }
 
   const prompts = selectPresetModifiedPrompts(state);
 
@@ -140,7 +144,7 @@ export const buildQwenImageGraph = async (arg: GraphBuilderArg): Promise<GraphBu
     id: getPrefixedId('denoise_latents'),
     cfg_scale,
     steps,
-    shift: params.qwenImageShift,
+    shift: isQwenImage21 && params.qwenImageShift === 1 ? undefined : params.qwenImageShift,
   });
   const l2i = g.addNode({
     type: 'qwen_image_l2i',
@@ -163,7 +167,9 @@ export const buildQwenImageGraph = async (arg: GraphBuilderArg): Promise<GraphBu
   g.addEdge(denoise, 'latents', l2i, 'latents');
 
   // Add Qwen Image Edit LoRAs if any are enabled
-  addQwenImageLoRAs(state, g, denoise, modelLoader);
+  if (!isQwenImage21) {
+    addQwenImageLoRAs(state, g, denoise, modelLoader);
+  }
 
   // Only collect reference images for edit-variant models.
   // For txt2img (generate) models, reference images are not used even if they exist in state.
@@ -204,31 +210,43 @@ export const buildQwenImageGraph = async (arg: GraphBuilderArg): Promise<GraphBu
     assert(prevCollect !== null);
     // Pass reference images to text encoder for vision-language conditioning
     g.addEdge(prevCollect, 'collection', posCond, 'reference_images');
+    if (isQwenImage21 && negCond) {
+      g.addEdge(prevCollect, 'collection', negCond, 'reference_images');
+    }
 
-    // Also VAE-encode the first reference image as latents for the denoising transformer.
-    // The transformer expects [noisy_patches ; ref_patches] in its sequence.
-    const firstConfig = validRefImageConfigs[0]!;
-    const firstImage = firstConfig.config.image?.crop?.image ?? firstConfig.config.image?.original.image;
-    const firstImgField = zImageField.parse(firstImage);
-    // Resize the reference image to ~1024² area preserving aspect ratio, matching the
-    // diffusers QwenImageEdit(Plus)Pipeline's VAE_IMAGE_SIZE. The denoise node uses
-    // the reference latent's own dimensions for RoPE, so the ref segment is encoded
-    // at the resolution the model was trained on rather than the source image's
-    // native size.
-    const refDims = firstImage ? calculateQwenImageEditRefDimensions(firstImage.width, firstImage.height) : undefined;
-    const refI2l = g.addNode({
-      type: 'qwen_image_i2l',
-      id: getPrefixedId('qwen_ref_i2l'),
-      ...(refDims ? { width: refDims.width, height: refDims.height } : {}),
-    });
-    const refImageNode = g.addNode({
-      type: 'image',
-      id: getPrefixedId('qwen_ref_img_for_vae'),
-      image: firstImgField,
-    });
-    g.addEdge(refImageNode, 'image', refI2l, 'image');
-    g.addEdge(modelLoader, 'vae', refI2l, 'vae');
-    g.addEdge(refI2l, 'latents', denoise, 'reference_latents');
+    // Qwen Image 2.1 concatenates a latent segment for every vision reference.
+    // Earlier edit models use only the first reference latent.
+    let prevLatentsCollect: Invocation<'collect'> | null = null;
+    const referencesToEncode = isQwenImage21 ? validRefImageConfigs : validRefImageConfigs.slice(0, 1);
+    for (const { config } of referencesToEncode) {
+      const refImage = config.image?.crop?.image ?? config.image?.original.image;
+      const refDims = refImage ? calculateQwenImageEditRefDimensions(refImage.width, refImage.height) : undefined;
+      const refI2l = g.addNode({
+        type: 'qwen_image_i2l',
+        id: getPrefixedId('qwen_ref_i2l'),
+        ...(refDims ? { width: refDims.width, height: refDims.height } : {}),
+      });
+      const refImageNode = g.addNode({
+        type: 'image',
+        id: getPrefixedId('qwen_ref_img_for_vae'),
+        image: zImageField.parse(refImage),
+      });
+      g.addEdge(refImageNode, 'image', refI2l, 'image');
+      g.addEdge(modelLoader, 'vae', refI2l, 'vae');
+      if (isQwenImage21) {
+        const collectNode = g.addNode({ type: 'collect', id: getPrefixedId('qwen_ref_latents_collect') });
+        g.addEdge(refI2l, 'latents', collectNode, 'item');
+        if (prevLatentsCollect) {
+          g.addEdge(prevLatentsCollect, 'collection', collectNode, 'collection');
+        }
+        prevLatentsCollect = collectNode;
+      } else {
+        g.addEdge(refI2l, 'latents', denoise, 'reference_latents');
+      }
+    }
+    if (prevLatentsCollect) {
+      g.addEdge(prevLatentsCollect, 'collection', denoise, 'reference_latents_2_1');
+    }
 
     g.upsertMetadata({ ref_images: validRefImageConfigs }, 'merge');
   }

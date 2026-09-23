@@ -68,7 +68,25 @@ class QwenImageImageToLatentsInvocation(BaseInvocation, WithMetadata, WithBoard)
         # Resolve tile_size=0 ("model default") before estimating, so the reserved working memory
         # matches the tiles the VAE will actually use. Resolved against a constant rather than the
         # module's current tile_sample_min_height, which a previous invocation may have overwritten.
+        is_qwen_image_2_1 = vae_info.model.__class__.__name__ == "AutoencoderKLQwenImage21"
         effective_tile_size = resolve_qwen_image_vae_tile_size(tile_size) if tiled else None
+        if is_qwen_image_2_1 and effective_tile_size is not None:
+            # 2.1 compresses 16x spatially; keep tile and stride aligned to that grid.
+            effective_tile_size = (effective_tile_size + 63) // 64 * 64
+
+        if is_qwen_image_2_1:
+            estimated_working_memory = estimate_vae_working_memory_qwen_image(
+                operation="encode", image_tensor=image_tensor, vae=vae_info.model, tile_size=effective_tile_size
+            )
+            with vae_info.model_on_device(working_mem_bytes=estimated_working_memory) as (_, vae):
+                image_tensor = image_tensor.to(device=TorchDevice.choose_torch_device(), dtype=vae.dtype)
+                if image_tensor.dim() == 4:
+                    image_tensor = image_tensor.unsqueeze(2)
+                with torch.inference_mode(), patch_qwen_image_vae_tiling(vae, effective_tile_size):
+                    latents = vae.encode(image_tensor).latent_dist.mode().to(dtype=vae.dtype)
+                latents_mean = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
+                latents_std = torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
+                return (latents - latents_mean) / latents_std
 
         estimated_working_memory = estimate_vae_working_memory_qwen_image(
             operation="encode",
@@ -124,15 +142,17 @@ class QwenImageImageToLatentsInvocation(BaseInvocation, WithMetadata, WithBoard)
         # as unset, which is also how `tile_size` uses 0. Note this means a half-filled pair (e.g.
         # width=1024, height=0) encodes at the original size rather than raising.
         if (self.width or 0) > 0 and (self.height or 0) > 0:
-            image = image.convert("RGB").resize((self.width, self.height), resample=PILImage.LANCZOS)
+            image = image.resize((self.width, self.height), resample=PILImage.LANCZOS)
 
         # multiple_of=16 ensures the post-VAE latents (vae_scale_factor=8) have even
         # spatial dims, which the transformer's 2x2 patch packing requires.
-        image_tensor = image_resized_to_grid_as_tensor(image.convert("RGB"), multiple_of=16)
+        vae_info = context.models.load(self.vae.vae)
+        is_qwen_image_2_1 = vae_info.model.__class__.__name__ == "AutoencoderKLQwenImage21"
+        image_mode = "RGBA" if is_qwen_image_2_1 else "RGB"
+        multiple_of = 32 if is_qwen_image_2_1 else 16
+        image_tensor = image_resized_to_grid_as_tensor(image.convert(image_mode), multiple_of=multiple_of)
         if image_tensor.dim() == 3:
             image_tensor = einops.rearrange(image_tensor, "c h w -> 1 c h w")
-
-        vae_info = context.models.load(self.vae.vae)
 
         latents = self.vae_encode(
             vae_info=vae_info,

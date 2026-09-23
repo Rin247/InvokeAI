@@ -53,6 +53,31 @@ class QwenImageLatentsToImageInvocation(BaseInvocation, WithMetadata, WithBoard)
         latents = context.tensors.load(self.latents.latents_name)
 
         vae_info = context.models.load(self.vae.vae)
+        is_qwen_image_2_1 = vae_info.model.__class__.__name__ == "AutoencoderKLQwenImage21"
+        if is_qwen_image_2_1:
+            tiled = self.tiled or context.config.get().force_tiled_decode
+            effective_tile_size = resolve_qwen_image_vae_tile_size(self.tile_size) if tiled else None
+            if effective_tile_size is not None:
+                effective_tile_size = (effective_tile_size + 63) // 64 * 64
+            # The existing Qwen estimator assumes 8x spatial compression; 2.1 uses 16x.
+            estimate_shape = torch.empty((1, 1, latents.shape[-2] * 2, latents.shape[-1] * 2), device="meta")
+            estimated_working_memory = estimate_vae_working_memory_qwen_image(
+                operation="decode", image_tensor=estimate_shape, vae=vae_info.model, tile_size=effective_tile_size
+            )
+            with vae_info.model_on_device(working_mem_bytes=estimated_working_memory) as (_, vae):
+                context.util.signal_progress("Running VAE")
+                latents = latents.to(device=vae_info.compute_device, dtype=vae.dtype)
+                latents_mean = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
+                latents_std = torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
+                with torch.inference_mode(), patch_qwen_image_vae_tiling(vae, effective_tile_size):
+                    img = vae.decode(latents * latents_std + latents_mean, return_dict=False)[0][:, :, 0]
+                img = img.clamp(-1, 1)
+                img = rearrange(img[0], "c h w -> h w c")
+                img_pil = Image.fromarray((127.5 * (img + 1.0)).byte().cpu().numpy(), mode="RGBA")
+            TorchDevice.empty_cache()
+            image_dto = context.images.save(image=img_pil)
+            return ImageOutput.build(image_dto)
+
         tiled = self.tiled or context.config.get().force_tiled_decode
         # Resolve tile_size=0 ("model default") before estimating, so the memory the cache reserves
         # matches the tiles the VAE will actually use. Without this the estimate stays at the

@@ -297,53 +297,67 @@ export const addModelSelectedListener = (startAppListening: AppStartListening) =
             modelsUpdatedDisabledOrCleared += 1;
           }
         } else {
+          const modelConfigsResult = selectModelConfigsQuery(state);
+          const getModelConfig = (key: string) =>
+            modelConfigsResult.data ? modelConfigsAdapterSelectors.selectById(modelConfigsResult.data, key) : undefined;
+          const selectedMainConfig = getModelConfig(newModel.key);
+          const selectedVariant =
+            selectedMainConfig && 'variant' in selectedMainConfig && typeof selectedMainConfig.variant === 'string'
+              ? selectedMainConfig.variant
+              : null;
+          const isQwenImage21 = selectedVariant === 'qwen_image_2_1';
+
           // Switching to Qwen Image - auto-default component source to a matching diffusers model
-          if (!qwenImageComponentSource) {
+          const sourceConfig = qwenImageComponentSource && getModelConfig(qwenImageComponentSource.key);
+          const sourceMatches = sourceConfig && 'variant' in sourceConfig && sourceConfig.variant === selectedVariant;
+          if (!qwenImageComponentSource || !sourceMatches) {
             const availableQwenImageDiffusers = selectQwenImageDiffusersModels(state);
-
-            // Look up the new model's variant to match generate vs edit
-            const modelConfigsResult = selectModelConfigsQuery(state);
-            let selectedVariant: string | null = null;
-            if (modelConfigsResult.data) {
-              const newModelConfig = modelConfigsAdapterSelectors.selectById(modelConfigsResult.data, newModel.key);
-              if (newModelConfig && 'variant' in newModelConfig && typeof newModelConfig.variant === 'string') {
-                selectedVariant = newModelConfig.variant;
-              }
-            }
-
-            // Find a diffusers model matching the variant; if no variant on denoiser, prefer "generate" then "edit"
             const variantToMatch = selectedVariant ?? 'generate';
             const matchingModel = availableQwenImageDiffusers.find(
               (m) => 'variant' in m && m.variant === variantToMatch
             );
-            const fallbackModel = availableQwenImageDiffusers.find(
-              (m) => 'variant' in m && m.variant !== variantToMatch
-            );
-            const diffusersModel = matchingModel ?? fallbackModel ?? availableQwenImageDiffusers[0];
+            const diffusersModel = matchingModel ?? (isQwenImage21 ? undefined : availableQwenImageDiffusers[0]);
 
             if (diffusersModel) {
               dispatch(qwenImageComponentSourceSelected(zModelIdentifierField.parse(diffusersModel)));
+            } else if (qwenImageComponentSource) {
+              dispatch(qwenImageComponentSourceSelected(null));
             }
           }
 
           // Auto-select standalone VAE and Qwen2.5-VL Encoder if available - this allows GGUF
           // users to be ready-to-go after installing the starter pack without having to dig into
           // Advanced. Only set if the user hasn't already chosen one.
-          if (!qwenImageVaeModel) {
+          const vaeConfig = qwenImageVaeModel && getModelConfig(qwenImageVaeModel.key);
+          const vaeMatches =
+            vaeConfig && 'variant' in vaeConfig && (vaeConfig.variant === 'qwen_image_2_1') === isQwenImage21;
+          if (!qwenImageVaeModel || !vaeMatches) {
             const availableQwenImageVAEs = selectQwenImageVAEModels(state);
-            const vae = availableQwenImageVAEs[0];
+            const vae = availableQwenImageVAEs.find(
+              (m) => 'variant' in m && (m.variant === 'qwen_image_2_1') === isQwenImage21
+            );
             if (vae) {
               dispatch(qwenImageVaeModelSelected(zModelIdentifierField.parse(vae)));
+            } else if (qwenImageVaeModel) {
+              dispatch(qwenImageVaeModelSelected(null));
             }
           }
-          if (!qwenImageQwenVLEncoderModel) {
+          const encoderConfig = qwenImageQwenVLEncoderModel && getModelConfig(qwenImageQwenVLEncoderModel.key);
+          const encoderMatches =
+            encoderConfig &&
+            ('architecture' in encoderConfig ? encoderConfig.architecture === 'qwen3_vl' : false) === isQwenImage21;
+          if (!qwenImageQwenVLEncoderModel || !encoderMatches) {
             const availableQwenVLEncoders = selectQwenVLEncoderModels(state);
             // Prefer diffusers (folder) format over single-file checkpoints, since the latter
             // can fail to load on some checkpoints.
-            const encoder =
-              availableQwenVLEncoders.find((m) => m.format === 'qwen_vl_encoder') ?? availableQwenVLEncoders[0];
+            const matchingEncoders = availableQwenVLEncoders.filter(
+              (m) => ('architecture' in m ? m.architecture === 'qwen3_vl' : false) === isQwenImage21
+            );
+            const encoder = matchingEncoders.find((m) => m.format === 'qwen_vl_encoder') ?? matchingEncoders[0];
             if (encoder) {
               dispatch(qwenImageQwenVLEncoderModelSelected(zModelIdentifierField.parse(encoder)));
+            } else if (qwenImageQwenVLEncoderModel) {
+              dispatch(qwenImageQwenVLEncoderModelSelected(null));
             }
           }
         }
