@@ -374,6 +374,9 @@ class QwenImageCheckpointModel(ModelLoader):
         target_device = TorchDevice.choose_torch_device()
         model_dtype = TorchDevice.choose_bfloat16_safe_dtype(target_device)
 
+        # A checkpoint is mapped and sometimes expanded before the model is admitted to
+        # the RAM cache. Evict old models *before* that peak, not only after casting.
+        self._ram_cache.make_room(model_path.stat().st_size)
         sd = load_file(str(model_path))
         sd = _strip_comfyui_prefix(sd)
 
@@ -517,8 +520,22 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
         logger = InvokeAILogger.get_logger(self.__class__.__name__)
 
         repo = self._repo_for_config(config)
-        load_class = Qwen3VLProcessor if config.architecture == "qwen3_vl" else AutoTokenizer
-        subfolder = "processor" if config.architecture == "qwen3_vl" else None
+        if config.architecture == "qwen3_vl":
+            from huggingface_hub import snapshot_download
+
+            # Transformers 5.x's repo+subfolder path asks the Hub for a nonexistent
+            # processor/config.json even when all processor files are cached. Passing
+            # the cached processor directory itself avoids a network lookup on every load.
+            try:
+                snapshot = snapshot_download(repo, allow_patterns="processor/*", local_files_only=True)
+                return Qwen3VLProcessor.from_pretrained(str(Path(snapshot) / "processor"), local_files_only=True)
+            except OSError:
+                logger.info(f"Downloading processor for single-file Qwen VL encoder from {repo} (one-time).")
+                snapshot = snapshot_download(repo, allow_patterns="processor/*")
+                return Qwen3VLProcessor.from_pretrained(str(Path(snapshot) / "processor"), local_files_only=True)
+
+        load_class = AutoTokenizer
+        subfolder = None
         try:
             return load_class.from_pretrained(repo, subfolder=subfolder, local_files_only=True)
         except OSError:
@@ -549,6 +566,9 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
         target_device = TorchDevice.choose_torch_device()
         model_dtype = TorchDevice.choose_bfloat16_safe_dtype(target_device)
 
+        # INT8 ConvRot weights expand to bf16 here. Evict idle cached models before
+        # reading/dequantizing the checkpoint, when transient RAM use is highest.
+        self._ram_cache.make_room(model_path.stat().st_size)
         sd = load_file(str(model_path))
 
         # Dequantize ComfyUI-style fp8 weights, then strip the now-unused quantization
