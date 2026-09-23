@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -175,6 +176,55 @@ def _split_qwen_image_2_1_mlp_weights(sd: dict) -> None:
         prefix = key[: -len("gate_up.weight")]
         sd[prefix + "gate_layer.weight"] = gate.contiguous()
         sd[prefix + "proj.weight"] = up.contiguous()
+        scale_key = prefix + "gate_up.weight_scale"
+        if scale_key in sd:
+            gate_scale, up_scale = sd.pop(scale_key).chunk(2, dim=0)
+            sd[prefix + "gate_layer.weight_scale"] = gate_scale.contiguous()
+            sd[prefix + "proj.weight_scale"] = up_scale.contiguous()
+        quant_key = prefix + "gate_up.comfy_quant"
+        if quant_key in sd:
+            quant_metadata = sd.pop(quant_key)
+            sd[prefix + "gate_layer.comfy_quant"] = quant_metadata
+            sd[prefix + "proj.comfy_quant"] = quant_metadata
+
+
+def _extract_qwen_image_2_1_int8_convrot(sd: dict) -> tuple[dict, set[str]]:
+    """Keep native INT8 tensors aside while ordinary scaled weights are dequantized."""
+    quant_sd: dict = {}
+    layer_names: set[str] = set()
+    for metadata_key in [k for k in sd if isinstance(k, str) and k.endswith(".comfy_quant")]:
+        metadata = json.loads(bytes(sd[metadata_key].tolist()))
+        if metadata != {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": 256}:
+            raise ValueError(f"Unsupported Qwen Image 2.1 quantization at {metadata_key}: {metadata}")
+        layer_name = metadata_key[: -len(".comfy_quant")]
+        weight_key = layer_name + ".weight"
+        scale_key = layer_name + ".weight_scale"
+        weight = sd[weight_key]
+        scale = sd[scale_key]
+        if weight.dtype != torch.int8 or weight.ndim != 2 or weight.shape[1] % 256:
+            raise ValueError(f"Invalid INT8 ConvRot weight at {weight_key}: {weight.shape}, {weight.dtype}")
+        if scale.numel() not in (1, weight.shape[0]):
+            raise ValueError(f"Invalid INT8 ConvRot scale at {scale_key}: {scale.shape}")
+        quant_sd[weight_key] = sd.pop(weight_key)
+        quant_sd[scale_key] = sd.pop(scale_key)
+        layer_names.add(layer_name)
+    return quant_sd, layer_names
+
+
+def _replace_qwen_image_2_1_int8_linears(model: torch.nn.Module, sd: dict, layer_names: set[str]) -> None:
+    from invokeai.backend.model_manager.load.model_cache.torch_module_autocast.custom_modules.qwen_image_int8_convrot_linear import (
+        QwenImageInt8ConvRotLinear,
+    )
+
+    for layer_name in layer_names:
+        parent_name, child_name = layer_name.rsplit(".", 1)
+        parent = model.get_submodule(parent_name)
+        original = getattr(parent, child_name)
+        if type(original) is not torch.nn.Linear:
+            raise TypeError(f"Expected a Linear layer at {layer_name}, got {type(original).__name__}")
+        weight = sd[layer_name + ".weight"]
+        scale = sd[layer_name + ".weight_scale"]
+        setattr(parent, child_name, QwenImageInt8ConvRotLinear(original, weight.shape, scale.shape))
 
 
 @ModelLoaderRegistry.register(base=BaseModelType.QwenImage, type=ModelType.Main, format=ModelFormat.Diffusers)
@@ -288,9 +338,9 @@ class QwenImageGGUFCheckpointModel(ModelLoader):
 @ModelLoaderRegistry.register(base=BaseModelType.QwenImage, type=ModelType.Main, format=ModelFormat.Checkpoint)
 class QwenImageCheckpointModel(ModelLoader):
     """Loads Qwen Image transformer models from single-file safetensors checkpoints
-    (e.g. ComfyUI fp8_scaled, plain bf16/fp16). Dequantizes ComfyUI fp8 scaling to
-    bf16 at load time; the `default_settings.fp8_storage` toggle then optionally
-    re-casts to fp8 for VRAM savings."""
+    (e.g. ComfyUI fp8_scaled, INT8 ConvRot, plain bf16/fp16). Qwen Image 2.1
+    INT8 ConvRot weights stay quantized for native CUDA inference; other scaled
+    weights are dequantized at load time."""
 
     def _load_model(
         self,
@@ -327,11 +377,6 @@ class QwenImageCheckpointModel(ModelLoader):
         sd = load_file(str(model_path))
         sd = _strip_comfyui_prefix(sd)
 
-        dequantized = _dequantize_comfyui_fp8(sd, model_dtype)
-        if dequantized > 0:
-            logger.info(f"Dequantized {dequantized} ComfyUI-quantized weights")
-        _strip_quantization_metadata(sd)
-
         is_2_1 = getattr(config, "variant", None) == QwenImageVariantType.V2_1
         is_edit = getattr(config, "variant", None) == QwenImageVariantType.Edit
         model_config = (
@@ -342,16 +387,36 @@ class QwenImageCheckpointModel(ModelLoader):
         if is_2_1:
             _split_qwen_image_2_1_mlp_weights(sd)
 
+        quant_sd, int8_layer_names = _extract_qwen_image_2_1_int8_convrot(sd) if is_2_1 else ({}, set())
+        if int8_layer_names:
+            if target_device.type != "cuda":
+                raise RuntimeError("Qwen Image 2.1 INT8 ConvRot requires CUDA")
+            if getattr(getattr(config, "default_settings", None), "fp8_storage", None) is True:
+                raise ValueError("Disable fp8_storage for Qwen Image 2.1 INT8 ConvRot; its weights are already INT8")
+            try:
+                import comfy_kitchen  # noqa: F401
+            except ImportError as e:
+                raise RuntimeError(
+                    "Qwen Image 2.1 INT8 ConvRot requires comfy-kitchen. Install the qwen-int8 extra."
+                ) from e
+        dequantized = _dequantize_comfyui_fp8(sd, model_dtype)
+        if dequantized > 0:
+            logger.info(f"Dequantized {dequantized} ComfyUI-quantized weights")
+        _strip_quantization_metadata(sd)
+        sd.update(quant_sd)
+
         with accelerate.init_empty_weights():
             model = (
                 QwenImage21Transformer2DModel(**model_config) if is_2_1 else QwenImageTransformer2DModel(**model_config)
             )
+            if int8_layer_names:
+                _replace_qwen_image_2_1_int8_linears(model, sd, int8_layer_names)
 
         # Dequantized fp8 weights are already at model_dtype; this only casts any remaining
         # non-quantized float weights (e.g. a plain fp16/fp32 checkpoint) to the compute dtype
         # so the cache reservation below is sized from the actual post-cast tensors.
         for k in list(sd.keys()):
-            if sd[k].is_floating_point():
+            if k not in quant_sd and sd[k].is_floating_point():
                 sd[k] = sd[k].to(model_dtype)
 
         new_sd_size = sum(t.nelement() * t.element_size() for t in sd.values())
@@ -527,7 +592,7 @@ class QwenVLEncoderCheckpointLoader(ModelLoader):
                     f"encoder in the diffusers folder layout (text_encoder/config.json + tokenizer/) "
                     f"instead. Original error: {e}"
                 ) from e
-        qwen_config.torch_dtype = model_dtype
+        qwen_config.dtype = model_dtype
 
         new_sd_size = sum(t.nelement() * t.element_size() for t in sd.values())
         self._ram_cache.make_room(new_sd_size)

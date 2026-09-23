@@ -108,6 +108,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+"qwen-int8" = [
+  "comfy-kitchen==0.2.35; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 "xformers" = [
   # Core generation dependencies, pinned for reproducible builds.
   "xformers>=0.0.28.post1; sys_platform!='darwin'",

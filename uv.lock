@@ -431,6 +431,21 @@ wheels = [
 ]
 
 [[package]]
+name = "comfy-kitchen"
+version = "0.2.35"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/4e/24444b8536e372a79e5287355a2e22659ec6de0b283a64a47bd5e02a7566/comfy_kitchen-0.2.35-cp311-cp311-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:47b38fb0d8fe0b576f559e1c3d0aad85b2fe7de5f723935950a2a9686f838713", size = 26788143, upload-time = "2026-09-17T23:05:05.511Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/66/7c84f5cbbd74d69e1f0a0945258c50948fc2c96c67d7a5b61ab844305be5/comfy_kitchen-0.2.35-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:abdda98303c47f334d8ebdad56271caa5622d8517f156906087e4855ade79299", size = 47184512, upload-time = "2026-09-17T23:05:08.214Z" },
+    { url = "https://files.pythonhosted.org/packages/24/be/01138a0a97a2726f16735076840a30853c21d0df48afdad6a5ba714aca07/comfy_kitchen-0.2.35-cp311-cp311-win_amd64.whl", hash = "sha256:a03cee84635f039da39d5eed9640ab50d47b80e370717b3bee0e0561300389cc", size = 38541664, upload-time = "2026-09-17T23:05:10.688Z" },
+    { url = "https://files.pythonhosted.org/packages/45/9f/0495991518293be6ed02839516ff5140f76dc414d007c78f5e9dcf393038/comfy_kitchen-0.2.35-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:33566331e23aa69784bb3730e218241efdca9410937f0a1f51e712818088ec05", size = 26784220, upload-time = "2026-09-17T23:05:13.035Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/c5/13b976741bc3b35f3a7fcded995c5a774dccfe69aee0e792a0381378777c/comfy_kitchen-0.2.35-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9c59e898101d2657f967910acf6abc6f772d76b945da86c5fda5f7d817d1cda1", size = 47178127, upload-time = "2026-09-17T23:05:15.738Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/f4/180a69b2b6b812f0fad2dfe0d020a773edf774c806bf88537a8043d7f36f/comfy_kitchen-0.2.35-cp312-abi3-win_amd64.whl", hash = "sha256:0d05380b8dade098c4acecf8fed876a0ae0d14cd8a28934a83ab843d7ceb8e16", size = 38542167, upload-time = "2026-09-17T23:05:18.508Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/0b/67eb3acd07774cdce4f161d180e059654c47e2361df665f5e15534226eb9/comfy_kitchen-0.2.35-cp312-abi3-win_arm64.whl", hash = "sha256:17edfa3e09883f36fb475d81302b3467087e1b9399105577c31a3174abc1ded8", size = 6171368, upload-time = "2026-09-17T23:05:20.922Z" },
+    { url = "https://files.pythonhosted.org/packages/14/60/8f075cceb07cb78d3792446b1156b7f5a41b260ac60645ef1483e34f71ce/comfy_kitchen-0.2.35-py3-none-any.whl", hash = "sha256:f95d48638add1a36eed14037820c0f85f0df765321eeb53f0750bef8906abcbe", size = 213513, upload-time = "2026-09-17T23:05:22.162Z" },
+]
+
+[[package]]
 name = "compel"
 version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1184,6 +1199,9 @@ onnx-cuda = [
 onnx-directml = [
     { name = "onnxruntime-directml" },
 ]
+qwen-int8 = [
+    { name = "comfy-kitchen", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-cuda') or (platform_machine != 'x86_64' and extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-rocm') or (platform_machine != 'x86_64' and extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-xpu') or (platform_machine != 'x86_64' and extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-rocm') or (platform_machine != 'x86_64' and extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-xpu') or (platform_machine != 'x86_64' and extra == 'extra-8-invokeai-rocm' and extra == 'extra-8-invokeai-xpu') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-cuda') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-rocm') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-xpu') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-rocm') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-xpu') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-rocm' and extra == 'extra-8-invokeai-xpu')" },
+]
 rocm = [
     { name = "torch", version = "2.7.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and sys_platform == 'linux' and extra == 'extra-8-invokeai-rocm') or (platform_machine == 'x86_64' and extra == 'extra-8-invokeai-rocm' and extra == 'extra-8-invokeai-xpu') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-rocm' and extra == 'extra-8-invokeai-xpu') or (extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-cuda') or (extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-rocm') or (extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-xpu') or (extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-rocm') or (extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-xpu')" },
     { name = "torch", version = "2.10.0+rocm7.1", source = { registry = "https://download.pytorch.org/whl/rocm7.1" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-8-invokeai-rocm') or (platform_machine != 'x86_64' and extra == 'extra-8-invokeai-rocm' and extra == 'extra-8-invokeai-xpu') or (sys_platform != 'linux' and extra == 'extra-8-invokeai-rocm' and extra == 'extra-8-invokeai-xpu') or (extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-cuda') or (extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-rocm') or (extra == 'extra-8-invokeai-cpu' and extra == 'extra-8-invokeai-xpu') or (extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-rocm') or (extra == 'extra-8-invokeai-cuda' and extra == 'extra-8-invokeai-xpu')" },
@@ -1223,6 +1241,7 @@ requires-dist = [
     { name = "bcrypt", specifier = "<4.0.0" },
     { name = "bitsandbytes", marker = "sys_platform != 'darwin'" },
     { name = "blake3" },
+    { name = "comfy-kitchen", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'qwen-int8'", specifier = "==0.2.35" },
     { name = "compel", specifier = ">=2.4.0,<3" },
     { name = "deprecated" },
     { name = "diffusers", extras = ["torch"], git = "https://github.com/huggingface/diffusers.git?rev=6256aa7" },
@@ -1312,7 +1331,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"] },
     { name = "xformers", marker = "sys_platform != 'darwin' and extra == 'xformers'", specifier = ">=0.0.28.post1" },
 ]
-provides-extras = ["xformers", "cpu", "cuda", "rocm", "xpu", "onnx", "onnx-cuda", "onnx-directml", "dist", "dev", "test"]
+provides-extras = ["qwen-int8", "xformers", "cpu", "cuda", "rocm", "xpu", "onnx", "onnx-cuda", "onnx-directml", "dist", "dev", "test"]
 
 [[package]]
 name = "jaraco-classes"
