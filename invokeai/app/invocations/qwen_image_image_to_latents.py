@@ -18,6 +18,7 @@ from invokeai.backend.krea2.vae_compat import (
     QWEN_IMAGE_VAE_MIN_TILE_SIZE,
     as_qwen_image_vae,
     patch_qwen_image_vae_tiling,
+    qwen_image_2_1_tile_size,
     resolve_qwen_image_vae_tile_size,
 )
 from invokeai.backend.model_manager.load.load_base import LoadedModel
@@ -69,25 +70,32 @@ class QwenImageImageToLatentsInvocation(BaseInvocation, WithMetadata, WithBoard)
         # matches the tiles the VAE will actually use. Resolved against a constant rather than the
         # module's current tile_sample_min_height, which a previous invocation may have overwritten.
         is_qwen_image_2_1 = vae_info.model.__class__.__name__ == "AutoencoderKLQwenImage21"
-        effective_tile_size = resolve_qwen_image_vae_tile_size(tile_size) if tiled else None
-        if is_qwen_image_2_1 and effective_tile_size is not None:
-            # 2.1 compresses 16x spatially; keep tile and stride aligned to that grid.
-            effective_tile_size = (effective_tile_size + 63) // 64 * 64
-
         if is_qwen_image_2_1:
-            estimated_working_memory = estimate_vae_working_memory_qwen_image(
-                operation="encode", image_tensor=image_tensor, vae=vae_info.model, tile_size=effective_tile_size
+            full_encode_bytes = estimate_vae_working_memory_qwen_image(
+                operation="encode", image_tensor=image_tensor, vae=vae_info.model
+            )
+            device = vae_info.compute_device
+            total_vram_bytes = torch.cuda.get_device_properties(device).total_memory if device.type == "cuda" else None
+            effective_tile_size = qwen_image_2_1_tile_size(tile_size, tiled, full_encode_bytes, total_vram_bytes)
+            estimated_working_memory = (
+                estimate_vae_working_memory_qwen_image(
+                    operation="encode", image_tensor=image_tensor, vae=vae_info.model, tile_size=effective_tile_size
+                )
+                if effective_tile_size is not None
+                else full_encode_bytes
             )
             with vae_info.model_on_device(working_mem_bytes=estimated_working_memory) as (_, vae):
                 image_tensor = image_tensor.to(device=TorchDevice.choose_torch_device(), dtype=vae.dtype)
                 if image_tensor.dim() == 4:
                     image_tensor = image_tensor.unsqueeze(2)
+                TorchDevice.empty_cache()
                 with torch.inference_mode(), patch_qwen_image_vae_tiling(vae, effective_tile_size):
                     latents = vae.encode(image_tensor).latent_dist.mode().to(dtype=vae.dtype)
                 latents_mean = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
                 latents_std = torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
                 return (latents - latents_mean) / latents_std
 
+        effective_tile_size = resolve_qwen_image_vae_tile_size(tile_size) if tiled else None
         estimated_working_memory = estimate_vae_working_memory_qwen_image(
             operation="encode",
             image_tensor=image_tensor,

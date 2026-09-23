@@ -90,6 +90,16 @@ def resolve_qwen_image_vae_tile_size(tile_size: int) -> int:
     return max(tile_size, QWEN_IMAGE_VAE_MIN_TILE_SIZE)
 
 
+def qwen_image_2_1_tile_size(
+    tile_size: int, tiled: bool, full_operation_bytes: int, total_vram_bytes: int | None
+) -> int | None:
+    """Use 16x-aligned tiles when a Qwen Image 2.1 VAE operation crowds GPU memory."""
+    # Keep room for mandatory VAE weights, live tensors, and the desktop compositor.
+    if not tiled and (total_vram_bytes is None or full_operation_bytes <= total_vram_bytes * 0.4):
+        return None
+    return (resolve_qwen_image_vae_tile_size(tile_size) + 63) // 64 * 64
+
+
 def _tile_stride_for(tile_size: int) -> int:
     """Return the tile stride to pair with ``tile_size``, keeping the stock 3/4 ratio.
 

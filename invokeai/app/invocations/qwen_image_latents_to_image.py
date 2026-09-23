@@ -18,6 +18,7 @@ from invokeai.backend.krea2.vae_compat import (
     QWEN_IMAGE_VAE_MIN_TILE_SIZE,
     as_qwen_image_vae,
     patch_qwen_image_vae_tiling,
+    qwen_image_2_1_tile_size,
     resolve_qwen_image_vae_tile_size,
 )
 from invokeai.backend.stable_diffusion.extensions.seamless import SeamlessExt
@@ -55,22 +56,48 @@ class QwenImageLatentsToImageInvocation(BaseInvocation, WithMetadata, WithBoard)
         vae_info = context.models.load(self.vae.vae)
         is_qwen_image_2_1 = vae_info.model.__class__.__name__ == "AutoencoderKLQwenImage21"
         if is_qwen_image_2_1:
-            tiled = self.tiled or context.config.get().force_tiled_decode
-            effective_tile_size = resolve_qwen_image_vae_tile_size(self.tile_size) if tiled else None
-            if effective_tile_size is not None:
-                effective_tile_size = (effective_tile_size + 63) // 64 * 64
             # The existing Qwen estimator assumes 8x spatial compression; 2.1 uses 16x.
             estimate_shape = torch.empty((1, 1, latents.shape[-2] * 2, latents.shape[-1] * 2), device="meta")
-            estimated_working_memory = estimate_vae_working_memory_qwen_image(
-                operation="decode", image_tensor=estimate_shape, vae=vae_info.model, tile_size=effective_tile_size
+            full_decode_bytes = estimate_vae_working_memory_qwen_image(
+                operation="decode", image_tensor=estimate_shape, vae=vae_info.model
+            )
+            device = vae_info.compute_device
+            total_vram_bytes = torch.cuda.get_device_properties(device).total_memory if device.type == "cuda" else None
+            requested_tiled = self.tiled or context.config.get().force_tiled_decode
+            effective_tile_size = qwen_image_2_1_tile_size(
+                self.tile_size, requested_tiled, full_decode_bytes, total_vram_bytes
+            )
+            estimated_working_memory = (
+                estimate_vae_working_memory_qwen_image(
+                    operation="decode", image_tensor=estimate_shape, vae=vae_info.model, tile_size=effective_tile_size
+                )
+                if effective_tile_size is not None
+                else full_decode_bytes
             )
             with vae_info.model_on_device(working_mem_bytes=estimated_working_memory) as (_, vae):
-                context.util.signal_progress("Running VAE")
+                auto_tiled = effective_tile_size is not None and not requested_tiled
+                context.util.signal_progress("Running tiled VAE (low VRAM)" if auto_tiled else "Running VAE")
                 latents = latents.to(device=vae_info.compute_device, dtype=vae.dtype)
                 latents_mean = torch.tensor(vae.config.latents_mean).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
                 latents_std = torch.tensor(vae.config.latents_std).view(1, vae.config.z_dim, 1, 1, 1).to(latents)
-                with torch.inference_mode(), patch_qwen_image_vae_tiling(vae, effective_tile_size):
-                    img = vae.decode(latents * latents_std + latents_mean, return_dict=False)[0][:, :, 0]
+                scaled_latents = latents * latents_std + latents_mean
+                TorchDevice.empty_cache()
+                decode_oom = False
+                try:
+                    with torch.inference_mode(), patch_qwen_image_vae_tiling(vae, effective_tile_size):
+                        img = vae.decode(scaled_latents, return_dict=False)[0][:, :, 0]
+                except torch.OutOfMemoryError:
+                    if effective_tile_size is not None:
+                        raise
+                    decode_oom = True
+                if decode_oom:
+                    # A full decode failed after denoising; retry the saved latents as tiles.
+                    context.util.signal_progress("Retrying VAE with tiles after CUDA OOM")
+                    vae.clear_cache()
+                    TorchDevice.empty_cache()
+                    fallback_tile_size = qwen_image_2_1_tile_size(self.tile_size, True, 0, None)
+                    with torch.inference_mode(), patch_qwen_image_vae_tiling(vae, fallback_tile_size):
+                        img = vae.decode(scaled_latents, return_dict=False)[0][:, :, 0]
                 img = img.clamp(-1, 1)
                 img = rearrange(img[0], "c h w -> h w c")
                 img_pil = Image.fromarray((127.5 * (img + 1.0)).byte().cpu().numpy(), mode="RGBA")
