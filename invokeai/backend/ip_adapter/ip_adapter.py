@@ -192,20 +192,6 @@ class IPAdapterFull(IPAdapterPlus):
         return MLPProjModel.from_state_dict(state_dict).to(self.device, dtype=self.dtype)
 
 
-class IPAdapterPlusXL(IPAdapterPlus):
-    """IP-Adapter Plus for SDXL."""
-
-    def _init_image_proj_model(self, state_dict: dict[str, torch.Tensor]):
-        return Resampler.from_state_dict(
-            state_dict=state_dict,
-            depth=4,
-            dim_head=64,
-            heads=20,
-            num_queries=self._num_tokens,
-            ff_mult=4,
-        ).to(self.device, dtype=self.dtype)
-
-
 def load_ip_adapter_tensors(ip_adapter_ckpt_path: pathlib.Path, device: str) -> IPAdapterStateDict:
     state_dict: IPAdapterStateDict = {
         "ip_adapter": {},
@@ -236,20 +222,18 @@ def load_ip_adapter_tensors(ip_adapter_ckpt_path: pathlib.Path, device: str) -> 
 
 def build_ip_adapter(
     ip_adapter_ckpt_path: pathlib.Path, device: torch.device, dtype: torch.dtype = torch.float16
-) -> Union[IPAdapter, IPAdapterPlus, IPAdapterPlusXL, IPAdapterPlus]:
+) -> Union[IPAdapter, IPAdapterPlus]:
     state_dict = load_ip_adapter_tensors(ip_adapter_ckpt_path, device.type)
 
     # IPAdapter (with ImageProjModel)
     if "proj.weight" in state_dict["image_proj"]:
         return IPAdapter(state_dict, device=device, dtype=dtype)
 
-    # IPAdaterPlus or IPAdapterPlusXL (with Resampler)
+    # IPAdaterPlus (with Resampler)
     elif "proj_in.weight" in state_dict["image_proj"]:
         cross_attention_dim = state_dict["ip_adapter"]["1.to_k_ip.weight"].shape[-1]
         if cross_attention_dim == 768:
             return IPAdapterPlus(state_dict, device=device, dtype=dtype)  # SD1 IP-Adapter Plus
-        elif cross_attention_dim == 2048:
-            return IPAdapterPlusXL(state_dict, device=device, dtype=dtype)  # SDXL IP-Adapter Plus
         else:
             raise Exception(f"Unsupported IP-Adapter Plus cross-attention dimension: {cross_attention_dim}.")
 

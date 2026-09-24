@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "InvokeAI"
 description = "A full-featured AI-assisted image generation environment designed for creatives and enthusiasts."
-requires-python = ">=3.11, <3.13"
+requires-python = ">=3.14, <3.16"
 readme = { content-type = "text/markdown", file = "README.md" }
 keywords = ["stable-diffusion", "AI"]
 dynamic = ["version"]
@@ -23,7 +23,8 @@ classifiers = [
   'Operating System :: MacOS',
   'Operating System :: Microsoft :: Windows',
   'Programming Language :: Python :: 3 :: Only',
-  'Programming Language :: Python :: 3.12',
+  'Programming Language :: Python :: 3.14',
+  'Programming Language :: Python :: 3.15',
   'Topic :: Artistic Software',
   'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
   'Topic :: Internet :: WWW/HTTP :: WSGI :: Server',
@@ -38,18 +39,18 @@ dependencies = [
   "compel>=2.4.0,<3",
   "diffusers[torch]==0.40.0",
   "gguf",
-  "mediapipe==0.10.14",                   # needed for "mediapipeface" controlnet model
+  "mediapipe>=0.10.30",                   # needed for "mediapipeface" controlnet model
   "mistral-common>=1.5.4,<2",             # canonical Tekken tokenizer for FLUX.2 [dev] Mistral encoder; the
                                           # loader depends on private surface (Tekkenizer internals) that
                                           # moves across majors, so cap below 2.x (validated against 1.11.6)
   "numpy<2.0.0",
-  "onnx==1.16.1",
-  "onnxruntime==1.19.2",
+  "onnx==1.16.2",
+  "onnxruntime==1.24.4",
   "opencv-contrib-python",
   "imageio[ffmpeg]>=2.37",                 # video encode (for Wan 2.2 T2V/I2V output); encode behavior (macro_block_size) is version-sensitive
   "psutil>=6",                             # video decode worker process-tree termination
   "safetensors",
-  "sentencepiece==0.2.0",                 # 0.2.1 coredumps windows when loading t5 tokenizer
+  "sentencepiece>=0.2.2",                 # 0.2.0 fails to build on Python 3.14+; 0.2.1 coredumps windows when loading t5 tokenizer
   "spandrel",
   # Loosely pinned, will respect requirement of `diffusers[torch]`. Split by platform: linux/win allow
   # >=2.10 so the rocm extra can use torch 2.10.0+rocm7.1, while macOS stays on 2.7.x — newer macOS torch
@@ -60,8 +61,8 @@ dependencies = [
   # reject torch>=2.12 on Windows/Linux CUDA, CPU and ARM64, where 2.12 has no known problem.
   # The ROCm path is constrained where it can actually be targeted: the `rocm` extra below pins an
   # exact version, and the manual docs carry the ROCm-specific caveat.
-  "torch>=2.7.0,<3.0; sys_platform != 'darwin'",
-  "torch>=2.7.0,<2.8.0; sys_platform == 'darwin'",
+  "torch>=2.14.0,<3.0; sys_platform != 'darwin'",
+  "torch>=2.14.0,<2.15.0; sys_platform == 'darwin'",
   "torchsde",                             # diffusers needs this for SDE solvers, but it is not an explicit dep of diffusers
   "torchvision",
   "transformers>=5.5,<5.6",
@@ -113,59 +114,53 @@ dependencies = [
   # torch 2.4+cu carries its own triton dependency
 ]
 
-# The +cpu/+cu128/+rocm7.1 pins live on PyTorch's WHL indexes. torchvision has no
-# linux_aarch64 wheels there (torch does for +cpu/+cu128), so on linux_aarch64 these
+# The +cpu/+cu134/+rocm7.14 pins live on PyTorch's WHL indexes. torchvision has no
+# linux_aarch64 wheels there (torch does for +cpu/+cu134), so on linux_aarch64 these
 # pins are unsatisfiable and are gated behind a marker that excludes only that
 # platform; every other platform (Windows, macOS, Linux x86_64) is unaffected. On
 # linux_aarch64 the base `torch` / `torchvision` declarations resolve from PyPI
 # instead (CPU-only wheels — an aarch64 install requesting `cuda` gets CPU torch).
-# Since torch+cu128 aarch64 wheels DO exist on the index, real CUDA-on-aarch64
+# Since torch+cu134 aarch64 wheels DO exist on the index, real CUDA-on-aarch64
 # (e.g. Grace/GH200) is feasible later with a torchvision-specific workaround.
 "cpu" = [
-  "torch==2.7.1+cpu; sys_platform != 'linux' or platform_machine != 'aarch64'",
-  "torchvision==0.22.1+cpu; sys_platform != 'linux' or platform_machine != 'aarch64'",
+  "torch==2.14.0+cpu; sys_platform != 'linux' or platform_machine != 'aarch64'",
+  "torchvision==0.29.0+cpu; sys_platform != 'linux' or platform_machine != 'aarch64'",
   # linux_aarch64 fallback: same versions, resolved from PyPI. Without these
   # explicit entries the extra's conflict-universe would contain no torch at all
   # on aarch64 (uv partitions the base declarations into the no-extra universe).
-  "torch==2.7.1; sys_platform == 'linux' and platform_machine == 'aarch64'",
-  "torchvision==0.22.1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
 "cuda" = [
-  "torch==2.7.1+cu128; sys_platform != 'linux' or platform_machine != 'aarch64'",
-  "torchvision==0.22.1+cu128; sys_platform != 'linux' or platform_machine != 'aarch64'",
+  "torch==2.14.0+cu134; sys_platform != 'linux' or platform_machine != 'aarch64'",
+  "torchvision==0.29.0+cu134; sys_platform != 'linux' or platform_machine != 'aarch64'",
   # linux_aarch64 fallback, see note under "cpu"
-  "torch==2.7.1; sys_platform == 'linux' and platform_machine == 'aarch64'",
-  "torchvision==0.22.1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
-"rocm" = [
-  # ROCm wheels are x86_64-linux-only; gate by platform so macOS/win/linux-aarch64 resolution is unaffected.
-  "torch==2.10.0+rocm7.1; sys_platform == 'linux' and platform_machine != 'aarch64'",
-  "torchvision==0.25.0+rocm7.1; sys_platform == 'linux' and platform_machine != 'aarch64'",
-  "triton-rocm==3.6.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
-  # linux_aarch64 fallback, see note under "cpu"
-  "torch==2.7.1; sys_platform == 'linux' and platform_machine == 'aarch64'",
-  "torchvision==0.22.1; sys_platform == 'linux' and platform_machine == 'aarch64'",
-]
+# Note: ROCm extra is temporarily removed because torch 2.14.0+rocm10.0
+# does not exist on PyTorch's WHL index. Re-add when a valid ROCm wheel
+# is available or when the project upgrades torch past 2.14.0.
 # Intel XPU (Arc / Battlemage) wheels are published only for linux-x86_64 and
 # windows-amd64 on PyTorch's WHL index. Gate the +xpu pins to those platforms; the
 # Intel oneAPI runtime libs (intel-sycl-rt, etc.) come in automatically as deps of
 # torch+xpu.
-# Pinned ahead of the cpu/cuda extras (2.7.1), as the rocm extra already is. Intel's XPU
-# backend matured considerably after 2.7.1: torch.xpu.mem_get_info() works on driver/kernel
+# Pinned ahead of the cpu/cuda extras (2.14.0), as the rocm extra already is. Intel's XPU
+# backend matured considerably after 2.14.0: torch.xpu.mem_get_info() works on driver/kernel
 # combinations where it previously raised, and the bundled oneAPI runtime ships with the wheel
 # (intel-sycl-rt), so upgrading torch upgrades the user-space runtime too.
 "xpu" = [
-  "torch==2.13.0+xpu; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
-  "torchvision==0.28.0+xpu; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
+  "torch==2.14.0+xpu; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
+  "torchvision==0.29.0+xpu; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
   # XPU triton (for torch.compile); the WHL index ships linux-x86_64 and win_amd64 wheels.
   # Renamed from pytorch-triton-xpu to triton-xpu upstream.
-  "triton-xpu==3.7.2; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
+  "triton-xpu==3.8.0; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
   # macOS / linux_aarch64 have no +xpu wheels: fall back to base torch so the extra's
-  # conflict-universe always contains a torch. See note under "cpu". These stay on 2.7.1 to
-  # match the other extras and the project's `torch<2.8.0` constraint on darwin -- only the
+  # conflict-universe always contains a torch. See note under "cpu". These stay on 2.14.0 to
+  # match the other extras and the project's `torch<2.15.0` constraint on darwin -- only the
   # +xpu wheels above move.
-  "torch==2.7.1; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine == 'aarch64')",
-  "torchvision==0.22.1; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine == 'aarch64')",
+  "torch==2.14.0; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine == 'aarch64')",
+  "torchvision==0.29.0; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine == 'aarch64')",
 ]
 
 "onnx" = ["onnxruntime"]
@@ -214,24 +209,19 @@ exclude-dependencies = ["notebook"]
 [tool.uv.sources]
 # Exclude linux_aarch64 from the PyTorch WHL indexes so that uv resolves torch /
 # torchvision from PyPI on that platform. The indexes DO carry aarch64 torch wheels
-# (+cpu/+cu128), but no aarch64 torchvision wheels, so the pinned pairs cannot
+# (+cpu/+cu134), but no aarch64 torchvision wheels, so the pinned pairs cannot
 # resolve there. All other platforms (Windows, macOS, Linux x86_64) are unaffected.
 torch = [
   { index = "torch-cpu", extra = "cpu", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-cuda", extra = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
-  { index = "torch-rocm", extra = "rocm", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-xpu", extra = "xpu", marker = "(sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'" },
   { index = "pypi", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 torchvision = [
   { index = "torch-cpu", extra = "cpu", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-cuda", extra = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
-  { index = "torch-rocm", extra = "rocm", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-xpu", extra = "xpu", marker = "(sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'" },
   { index = "pypi", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-]
-triton-rocm = [
-  { index = "torch-rocm", marker = "sys_platform == 'linux' and platform_machine != 'aarch64'" },
 ]
 triton-xpu = [
   { index = "torch-xpu", marker = "(sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'" },
@@ -248,12 +238,12 @@ explicit = true
 
 [[tool.uv.index]]
 name = "torch-cuda"
-url = "https://download.pytorch.org/whl/cu128"
+url = "https://download.pytorch.org/whl/cu134"
 explicit = true
 
 [[tool.uv.index]]
 name = "torch-rocm"
-url = "https://download.pytorch.org/whl/rocm7.1"
+url = "https://download.pytorch.org/whl/rocm7.14"
 explicit = true
 
 [[tool.uv.index]]

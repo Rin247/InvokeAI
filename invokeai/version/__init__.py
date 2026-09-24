@@ -16,5 +16,14 @@ def _ignore_xformers_triton_message_on_windows():
     )
 
 
+def _ignore_pytorch_flop_counter_triton_warning():
+    import logging
+
+    logging.getLogger("torch.utils.flop_counter").addFilter(
+        lambda record: "triton not found; flop counting will not work for triton kernels" not in record.getMessage()
+    )
+
+
 # In order to be effective, this needs to happen before anything could possibly import xformers.
 _ignore_xformers_triton_message_on_windows()
+_ignore_pytorch_flop_counter_triton_warning()

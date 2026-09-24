@@ -1001,8 +1001,8 @@ class TestSdpaBackendProbe:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="only CUDA's chooser honours the priority order")
     def test_this_build_reports_a_real_priority_reorder(self):
-        """The same case against the real dispatcher rather than a stand-in. Verified on torch
-        2.7.1+cu128: `_fused_sdp_choice` answers EFFICIENT outside and MATH inside."""
+         """The same case against the real dispatcher rather than a stand-in. Verified on torch
+         2.14.0+cu134: `_fused_sdp_choice` answers EFFICIENT outside and MATH inside."""
         from torch.nn.attention import SDPBackend, sdpa_kernel
 
         def estimate():

@@ -58,19 +58,9 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 ### Model Support
 - SD 1.5
 - SD 2.0
-- SDXL
 - SD 3.5 Medium
 - SD 3.5 Large
 - CogView 4
-- Flux.1 Dev
-- Flux.1 Schnell
-- Flux.1 Kontext
-- Flux.1 Krea
-- Flux Redux
-- Flux Fill
-- Flux.2 Dev
-- Flux.2 Klein 4B
-- Flux.2 Klein 9B
 - Z-Image Turbo
 - Z-Image Base
 - Krea 2 Turbo

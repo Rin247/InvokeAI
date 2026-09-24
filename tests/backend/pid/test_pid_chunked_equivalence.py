@@ -7,7 +7,7 @@ of the problem the setting actually has, because the shipped path runs on CUDA u
 thousands rather than 8. There, splitting a GEMM into 1024-row slices makes cuBLAS pick different
 kernels and reduction orders, and the results differ by bf16 ULPs.
 
-Measured on an RTX 4090 (torch 2.7.1+cu128), production `PiTBlock` dimensions:
+Measured on an RTX 4090 (torch 2.14.0+cu134), production `PiTBlock` dimensions:
 
     CPU  fp32 (x86-64, MKL),  BL=2048         ->  max|diff| = 0
     CUDA fp32,                BL=4096         ->  max|diff| = 9.5e-07

@@ -131,24 +131,6 @@ clip_l_encoder = StarterModel(
 )
 # endregion
 
-# region VAE
-sdxl_fp16_vae_fix = StarterModel(
-    name="sdxl-vae-fp16-fix",
-    base=BaseModelType.StableDiffusionXL,
-    source="madebyollin/sdxl-vae-fp16-fix",
-    description="SDXL VAE that works with FP16.",
-    type=ModelType.VAE,
-)
-flux_vae = StarterModel(
-    name="FLUX.1-schnell_ae",
-    base=BaseModelType.Flux,
-    source="black-forest-labs/FLUX.1-schnell::ae.safetensors",
-    description="FLUX VAE compatible with both schnell and dev variants.",
-    type=ModelType.VAE,
-)
-# endregion
-
-
 # region PiD (Pixel Diffusion Decoder)
 # PiD's pretrained decoders condition on Gemma-2-2b-it caption embeddings (2304-dim). NVIDIA references the ungated
 # mirror Efficient-Large-Model/gemma-2-2b-it. It is shared across all PiD backbones, so it is a dependency of each
@@ -162,51 +144,9 @@ gemma2_2b_encoder = StarterModel(
     format=ModelFormat.Gemma2Encoder,
 )
 
-# NVIDIA PiD decoders (https://huggingface.co/nvidia/PiD). Code is Apache-2.0; weights are NSCLv1 (non-commercial /
-# research). Each is a 4x super-resolution decoder that replaces the regular VAE decode and needs the Gemma-2 encoder.
-pid_decoder_flux_2k = StarterModel(
-    name="PiD Decoder FLUX (2K)",
-    base=BaseModelType.Flux,
-    source="nvidia/PiD::checkpoints/PiD_res2k_sr4x_official_flux_distill_4step/model_ema_bf16.pth",
-    description="NVIDIA PiD 4x super-resolution decoder for FLUX latents, 2K target preset (e.g. 512 -> 2048). ~5GB",
-    type=ModelType.PiDDecoder,
-    format=ModelFormat.Checkpoint,
-    variant=PiDDecoderVariantType.Res2k_Sr4x,
-    dependencies=[gemma2_2b_encoder],
-)
-pid_decoder_flux_2kto4k = StarterModel(
-    name="PiD Decoder FLUX (2K to 4K)",
-    base=BaseModelType.Flux,
-    source="nvidia/PiD::checkpoints_deprecated/PiD_res2kto4k_sr4x_official_flux_distill_4step/model_ema_bf16.pth",
-    description="NVIDIA PiD 4x super-resolution decoder for FLUX latents, 2K-to-4K preset (legacy architecture; NVIDIA's newer v1.5 checkpoint uses a different network that is not yet supported). ~5GB",
-    type=ModelType.PiDDecoder,
-    format=ModelFormat.Checkpoint,
-    variant=PiDDecoderVariantType.Res2kTo4k_Sr4x,
-    dependencies=[gemma2_2b_encoder],
-)
 # FLUX.2 Klein shares one 32-channel VAE across the 4B and 9B variants, so a single decoder per preset covers both.
 # The 128-channel packed latent is unambiguous (unlike the 16ch FLUX/SD3 case), so no directory-name disambiguation
 # is needed for the config probe.
-pid_decoder_flux2_2k = StarterModel(
-    name="PiD Decoder FLUX.2 (2K)",
-    base=BaseModelType.Flux2,
-    source="nvidia/PiD::checkpoints/PiD_res2k_sr4x_official_flux2_distill_4step/model_ema_bf16.pth",
-    description="NVIDIA PiD 4x super-resolution decoder for FLUX.2 Klein latents, 2K target preset (e.g. 512 -> 2048). ~5GB",
-    type=ModelType.PiDDecoder,
-    format=ModelFormat.Checkpoint,
-    variant=PiDDecoderVariantType.Res2k_Sr4x,
-    dependencies=[gemma2_2b_encoder],
-)
-pid_decoder_flux2_2kto4k = StarterModel(
-    name="PiD Decoder FLUX.2 (2K to 4K)",
-    base=BaseModelType.Flux2,
-    source="nvidia/PiD::checkpoints_deprecated/PiD_res2kto4k_sr4x_official_flux2_distill_4step/model_ema_bf16.pth",
-    description="NVIDIA PiD 4x super-resolution decoder for FLUX.2 Klein latents, 2K-to-4K preset (legacy architecture; NVIDIA's newer v1.5 checkpoint uses a different network that is not yet supported). ~5GB",
-    type=ModelType.PiDDecoder,
-    format=ModelFormat.Checkpoint,
-    variant=PiDDecoderVariantType.Res2kTo4k_Sr4x,
-    dependencies=[gemma2_2b_encoder],
-)
 # SD3 uses a 16-channel latent, architecturally identical to FLUX.1. The config probe disambiguates via the
 # checkpoint's directory name (`…official_sd3_distill…`); if the HF single-file download drops that name, the
 # explicit base=StableDiffusion3 override the installer sends is trusted instead (see pid_decoder.py::_validate_base).
@@ -260,79 +200,6 @@ pid_decoder_qwenimage_2kto4k = StarterModel(
 
 
 # region: Main
-flux_schnell_quantized = StarterModel(
-    name="FLUX.1 schnell (quantized)",
-    base=BaseModelType.Flux,
-    source="InvokeAI/flux_schnell::transformer/bnb_nf4/flux1-schnell-bnb_nf4.safetensors",
-    description="FLUX schnell transformer quantized to bitsandbytes NF4 format. Total size with dependencies: ~12GB",
-    type=ModelType.Main,
-    dependencies=[t5_8b_quantized_encoder, flux_vae, clip_l_encoder],
-)
-flux_dev_quantized = StarterModel(
-    name="FLUX.1 dev (quantized)",
-    base=BaseModelType.Flux,
-    source="InvokeAI/flux_dev::transformer/bnb_nf4/flux1-dev-bnb_nf4.safetensors",
-    description="FLUX dev transformer quantized to bitsandbytes NF4 format. Total size with dependencies: ~12GB",
-    type=ModelType.Main,
-    dependencies=[t5_8b_quantized_encoder, flux_vae, clip_l_encoder],
-)
-flux_schnell = StarterModel(
-    name="FLUX.1 schnell",
-    base=BaseModelType.Flux,
-    source="InvokeAI/flux_schnell::transformer/base/flux1-schnell.safetensors",
-    description="FLUX schnell transformer in bfloat16. Total size with dependencies: ~33GB",
-    type=ModelType.Main,
-    dependencies=[t5_base_encoder, flux_vae, clip_l_encoder],
-)
-flux_dev = StarterModel(
-    name="FLUX.1 dev",
-    base=BaseModelType.Flux,
-    source="InvokeAI/flux_dev::transformer/base/flux1-dev.safetensors",
-    description="FLUX dev transformer in bfloat16. Total size with dependencies: ~33GB",
-    type=ModelType.Main,
-    dependencies=[t5_base_encoder, flux_vae, clip_l_encoder],
-)
-flux_schnell_sdnq = StarterModel(
-    name="FLUX.1 schnell (SDNQ uint4 + SVD)",
-    base=BaseModelType.Flux,
-    source="Disty0/FLUX.1-schnell-SDNQ-uint4-svd-r32",
-    description="FLUX.1 schnell quantized via SDNQ to uint4 + SVD rank 32. Full self-contained "
-    "Flux pipeline (transformer + T5 + CLIP + VAE). ~15GB",
-    type=ModelType.Main,
-    format=ModelFormat.SDNQQuantized,
-)
-flux_kontext = StarterModel(
-    name="FLUX.1 Kontext dev",
-    base=BaseModelType.Flux,
-    source="https://huggingface.co/black-forest-labs/FLUX.1-Kontext-dev/resolve/main/flux1-kontext-dev.safetensors",
-    description="FLUX.1 Kontext dev transformer in bfloat16. Total size with dependencies: ~33GB",
-    type=ModelType.Main,
-    dependencies=[t5_base_encoder, flux_vae, clip_l_encoder],
-)
-flux_kontext_quantized = StarterModel(
-    name="FLUX.1 Kontext dev (quantized)",
-    base=BaseModelType.Flux,
-    source="https://huggingface.co/unsloth/FLUX.1-Kontext-dev-GGUF/resolve/main/flux1-kontext-dev-Q4_K_M.gguf",
-    description="FLUX.1 Kontext dev quantized (q4_k_m). Total size with dependencies: ~12GB",
-    type=ModelType.Main,
-    dependencies=[t5_8b_quantized_encoder, flux_vae, clip_l_encoder],
-)
-flux_krea = StarterModel(
-    name="FLUX.1 Krea dev",
-    base=BaseModelType.Flux,
-    source="https://huggingface.co/InvokeAI/FLUX.1-Krea-dev/resolve/main/flux1-krea-dev.safetensors",
-    description="FLUX.1 Krea dev. Total size with dependencies: ~29GB",
-    type=ModelType.Main,
-    dependencies=[t5_8b_quantized_encoder, flux_vae, clip_l_encoder],
-)
-flux_krea_quantized = StarterModel(
-    name="FLUX.1 Krea dev (quantized)",
-    base=BaseModelType.Flux,
-    source="https://huggingface.co/InvokeAI/FLUX.1-Krea-dev-GGUF/resolve/main/flux1-krea-dev-Q4_K_M.gguf",
-    description="FLUX.1 Krea dev quantized (q4_k_m). Total size with dependencies: ~12GB",
-    type=ModelType.Main,
-    dependencies=[t5_8b_quantized_encoder, flux_vae, clip_l_encoder],
-)
 sd35_medium = StarterModel(
     name="SD3.5 Medium",
     base=BaseModelType.StableDiffusion3,
@@ -392,57 +259,8 @@ deliberate_inpainting_sd1 = StarterModel(
     description="Inpainting version of Deliberate v5.",
     type=ModelType.Main,
 )
-juggernaut_sdxl = StarterModel(
-    name="Juggernaut XL v9",
-    base=BaseModelType.StableDiffusionXL,
-    source="RunDiffusion/Juggernaut-XL-v9",
-    description="Photograph-focused model.",
-    type=ModelType.Main,
-    dependencies=[sdxl_fp16_vae_fix],
-)
-dreamshaper_sdxl = StarterModel(
-    name="Dreamshaper XL v2 Turbo",
-    base=BaseModelType.StableDiffusionXL,
-    source="Lykon/dreamshaper-xl-v2-turbo",
-    description="For turbo, use CFG Scale 2, 4-8 steps, DPM++ SDE Karras. For non-turbo, use CFG Scale 6, 20-40 steps, DPM++ 2M SDE Karras.",
-    type=ModelType.Main,
-    dependencies=[sdxl_fp16_vae_fix],
-)
-
-archvis_sdxl = StarterModel(
-    name="Architecture (RealVisXL5)",
-    base=BaseModelType.StableDiffusionXL,
-    source="SG161222/RealVisXL_V5.0",
-    description="A photorealistic model, with architecture among its many use cases",
-    type=ModelType.Main,
-    dependencies=[sdxl_fp16_vae_fix],
-)
-
-sdxl_refiner = StarterModel(
-    name="SDXL Refiner",
-    base=BaseModelType.StableDiffusionXLRefiner,
-    source="stabilityai/stable-diffusion-xl-refiner-1.0",
-    description="The OG Stable Diffusion XL refiner model.",
-    type=ModelType.Main,
-    dependencies=[sdxl_fp16_vae_fix],
-)
 # endregion
-
 # region LoRA
-alien_lora_sdxl = StarterModel(
-    name="Alien Style",
-    base=BaseModelType.StableDiffusionXL,
-    source="https://huggingface.co/RalFinger/alien-style-lora-sdxl/resolve/main/alienzkin-sdxl.safetensors",
-    description="Futuristic, intricate alien styles. Trigger with 'alienzkin'.",
-    type=ModelType.LoRA,
-)
-noodle_lora_sdxl = StarterModel(
-    name="Noodles Style",
-    base=BaseModelType.StableDiffusionXL,
-    source="https://huggingface.co/RalFinger/noodles-lora-sdxl/resolve/main/noodlez-sdxl.safetensors",
-    description="Never-ending, no-holds-barred, noodle nightmare. Trigger with 'noodlez'.",
-    type=ModelType.LoRA,
-)
 # endregion
 # region TI
 easy_neg_sd1 = StarterModel(
@@ -481,45 +299,12 @@ ip_adapter_plus_face_sd1 = StarterModel(
     dependencies=[ip_adapter_sd_image_encoder],
     previous_names=["IP Adapter Plus Face"],
 )
-ip_adapter_sdxl = StarterModel(
-    name="Standard Reference (IP Adapter ViT-H)",
-    base=BaseModelType.StableDiffusionXL,
-    source="https://huggingface.co/InvokeAI/ip_adapter_sdxl_vit_h/resolve/main/ip-adapter_sdxl_vit-h.safetensors",
-    description="References images with a higher degree of precision.",
-    type=ModelType.IPAdapter,
-    dependencies=[ip_adapter_sdxl_image_encoder],
-    previous_names=["IP Adapter SDXL"],
-)
-ip_adapter_plus_sdxl = StarterModel(
-    name="Precise Reference (IP Adapter Plus ViT-H)",
-    base=BaseModelType.StableDiffusionXL,
-    source="https://huggingface.co/InvokeAI/ip-adapter-plus_sdxl_vit-h/resolve/main/ip-adapter-plus_sdxl_vit-h.safetensors",
-    description="References images with a higher degree of precision.",
-    type=ModelType.IPAdapter,
-    dependencies=[ip_adapter_sdxl_image_encoder],
-    previous_names=["IP Adapter Plus SDXL"],
-)
-ip_adapter_flux = StarterModel(
-    name="Standard Reference (XLabs FLUX IP-Adapter v2)",
-    base=BaseModelType.Flux,
-    source="https://huggingface.co/XLabs-AI/flux-ip-adapter-v2/resolve/main/ip_adapter.safetensors",
-    description="References images with a more generalized/looser degree of precision.",
-    type=ModelType.IPAdapter,
-    dependencies=[clip_vit_l_image_encoder],
-)
 # endregion
 # region ControlNet
 qr_code_cnet_sd1 = StarterModel(
     name="QRCode Monster v2 (SD1.5)",
     base=BaseModelType.StableDiffusion1,
     source="monster-labs/control_v1p_sd15_qrcode_monster::v2",
-    description="ControlNet model that generates scannable creative QR codes",
-    type=ModelType.ControlNet,
-)
-qr_code_cnet_sdxl = StarterModel(
-    name="QRCode Monster (SDXL)",
-    base=BaseModelType.StableDiffusionXL,
-    source="monster-labs/control_v1p_sdxl_qrcode_monster",
     description="ControlNet model that generates scannable creative QR codes",
     type=ModelType.ControlNet,
 )
@@ -627,84 +412,6 @@ tile_sd1 = StarterModel(
     type=ModelType.ControlNet,
     previous_names=["tile"],
 )
-canny_sdxl = StarterModel(
-    name="Hard Edge Detection (canny)",
-    base=BaseModelType.StableDiffusionXL,
-    source="xinsir/controlNet-canny-sdxl-1.0",
-    description="Uses detected edges in the image to control composition.",
-    type=ModelType.ControlNet,
-    previous_names=["canny-sdxl"],
-)
-depth_sdxl = StarterModel(
-    name="Depth Map",
-    base=BaseModelType.StableDiffusionXL,
-    source="diffusers/controlNet-depth-sdxl-1.0",
-    description="Uses depth information in the image to control the depth in the generation.",
-    type=ModelType.ControlNet,
-    previous_names=["depth-sdxl"],
-)
-softedge_sdxl = StarterModel(
-    name="Soft Edge Detection (softedge)",
-    base=BaseModelType.StableDiffusionXL,
-    source="SargeZT/controlNet-sd-xl-1.0-softedge-dexined",
-    description="Uses a soft edge detection map to control composition.",
-    type=ModelType.ControlNet,
-    previous_names=["softedge-dexined-sdxl"],
-)
-openpose_sdxl = StarterModel(
-    name="Pose Detection (openpose)",
-    base=BaseModelType.StableDiffusionXL,
-    source="xinsir/controlNet-openpose-sdxl-1.0",
-    description="Uses pose information to control the pose of human characters in the generation.",
-    type=ModelType.ControlNet,
-    previous_names=["openpose-sdxl", "controlnet-openpose-sdxl"],
-)
-scribble_sdxl = StarterModel(
-    name="Contour Detection (scribble)",
-    base=BaseModelType.StableDiffusionXL,
-    source="xinsir/controlNet-scribble-sdxl-1.0",
-    description="Uses edges, contours, or line art in the image to control composition.",
-    type=ModelType.ControlNet,
-    previous_names=["scribble-sdxl", "controlnet-scribble-sdxl"],
-)
-tile_sdxl = StarterModel(
-    name="Tile",
-    base=BaseModelType.StableDiffusionXL,
-    source="xinsir/controlNet-tile-sdxl-1.0",
-    description="Uses image data to replicate exact colors/structure in the resulting generation.",
-    type=ModelType.ControlNet,
-    previous_names=["tile-sdxl"],
-)
-union_cnet_sdxl = StarterModel(
-    name="Multi-Guidance Detection (Union Pro)",
-    base=BaseModelType.StableDiffusionXL,
-    source="InvokeAI/Xinsir-SDXL_Controlnet_Union",
-    description="A unified ControlNet for SDXL model that supports 10+ control types",
-    type=ModelType.ControlNet,
-)
-union_cnet_flux = StarterModel(
-    name="FLUX.1-dev-Controlnet-Union",
-    base=BaseModelType.Flux,
-    source="InstantX/FLUX.1-dev-Controlnet-Union",
-    description="A unified ControlNet for FLUX.1-dev model that supports 7 control modes, including canny (0), tile (1), depth (2), blur (3), pose (4), gray (5), low quality (6)",
-    type=ModelType.ControlNet,
-)
-# endregion
-# region Control LoRA
-flux_canny_control_lora = StarterModel(
-    name="Hard Edge Detection (Canny)",
-    base=BaseModelType.Flux,
-    source="black-forest-labs/FLUX.1-Canny-dev-lora::flux1-canny-dev-lora.safetensors",
-    description="Uses detected edges in the image to control composition.",
-    type=ModelType.ControlLoRa,
-)
-flux_depth_control_lora = StarterModel(
-    name="Depth Map",
-    base=BaseModelType.Flux,
-    source="black-forest-labs/FLUX.1-Depth-dev-lora::flux1-depth-dev-lora.safetensors",
-    description="Uses depth information in the image to control the depth in the generation.",
-    type=ModelType.ControlLoRa,
-)
 # endregion
 # region T2I Adapter
 t2i_canny_sd1 = StarterModel(
@@ -730,30 +437,6 @@ t2i_depth_sd1 = StarterModel(
     description="Uses depth information in the image to control the depth in the generation.",
     type=ModelType.T2IAdapter,
     previous_names=["depth-sd15"],
-)
-t2i_canny_sdxl = StarterModel(
-    name="Hard Edge Detection (canny)",
-    base=BaseModelType.StableDiffusionXL,
-    source="TencentARC/t2i-adapter-canny-sdxl-1.0",
-    description="Uses detected edges in the image to control composition",
-    type=ModelType.T2IAdapter,
-    previous_names=["canny-sdxl"],
-)
-t2i_lineart_sdxl = StarterModel(
-    name="Lineart",
-    base=BaseModelType.StableDiffusionXL,
-    source="TencentARC/t2i-adapter-lineart-sdxl-1.0",
-    description="Uses lineart detection to guide the lighting of the composition.",
-    type=ModelType.T2IAdapter,
-    previous_names=["lineart-sdxl"],
-)
-t2i_sketch_sdxl = StarterModel(
-    name="Sketch",
-    base=BaseModelType.StableDiffusionXL,
-    source="TencentARC/t2i-adapter-sketch-sdxl-1.0",
-    description="Uses a sketch to control composition",
-    type=ModelType.T2IAdapter,
-    previous_names=["sketch-sdxl"],
 )
 # endregion
 # region SpandrelImageToImage
@@ -978,27 +661,6 @@ qwen_image_lightning_8step = StarterModel(
 )
 # endregion
 
-# region SigLIP
-siglip = StarterModel(
-    name="SigLIP - google/siglip-so400m-patch14-384",
-    base=BaseModelType.Any,
-    source="google/siglip-so400m-patch14-384",
-    description="A SigLIP model (used by FLUX Redux).",
-    type=ModelType.SigLIP,
-)
-# endregion
-
-# region FLUX Redux
-flux_redux = StarterModel(
-    name="FLUX Redux",
-    base=BaseModelType.Flux,
-    source="black-forest-labs/FLUX.1-Redux-dev::flux1-redux-dev.safetensors",
-    description="FLUX Redux model (for image variation).",
-    type=ModelType.FluxRedux,
-    dependencies=[siglip],
-)
-# endregion
-
 # region LlavaOnevisionModel (vision-language models for Image-to-Prompt)
 llava_onevision = StarterModel(
     name="LLaVA Onevision Qwen2 0.5B",
@@ -1043,292 +705,6 @@ smollm2_1_7b_instruct = StarterModel(
 )
 # endregion
 
-# region FLUX Fill
-flux_fill = StarterModel(
-    name="FLUX Fill",
-    base=BaseModelType.Flux,
-    source="black-forest-labs/FLUX.1-Fill-dev::flux1-fill-dev.safetensors",
-    description="FLUX Fill model (for inpainting).",
-    type=ModelType.Main,
-)
-# endregion
-
-# region FLUX.2 Klein
-flux2_vae = StarterModel(
-    name="FLUX.2 VAE",
-    base=BaseModelType.Flux2,
-    source="black-forest-labs/FLUX.2-klein-4B::vae",
-    description="FLUX.2 VAE (16-channel, same architecture as FLUX.1 VAE). ~168MB",
-    type=ModelType.VAE,
-)
-
-flux2_klein_qwen3_4b_encoder = StarterModel(
-    name="FLUX.2 Klein Qwen3 4B Encoder",
-    base=BaseModelType.Any,
-    source="black-forest-labs/FLUX.2-klein-4B::text_encoder+tokenizer",
-    description="Qwen3 4B text encoder for FLUX.2 Klein 4B (also compatible with Z-Image). ~8GB",
-    type=ModelType.Qwen3Encoder,
-)
-
-flux2_klein_qwen3_8b_encoder = StarterModel(
-    name="FLUX.2 Klein Qwen3 8B Encoder",
-    base=BaseModelType.Any,
-    source="black-forest-labs/FLUX.2-klein-9B::text_encoder+tokenizer",
-    description="Qwen3 8B text encoder for FLUX.2 Klein 9B models. ~16GB",
-    type=ModelType.Qwen3Encoder,
-)
-
-flux2_klein_4b = StarterModel(
-    name="FLUX.2 Klein 4B (Diffusers)",
-    base=BaseModelType.Flux2,
-    source="black-forest-labs/FLUX.2-klein-4B",
-    description="FLUX.2 Klein 4B in Diffusers format - includes transformer, VAE and Qwen3 encoder. ~16GB",
-    type=ModelType.Main,
-)
-
-flux2_klein_4b_single = StarterModel(
-    name="FLUX.2 Klein 4B",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/resolve/main/flux-2-klein-4b.safetensors",
-    description="FLUX.2 Klein 4B standalone transformer. Installs with VAE and Qwen3 4B encoder. ~8GB",
-    type=ModelType.Main,
-    dependencies=[flux2_vae, flux2_klein_qwen3_4b_encoder],
-)
-
-flux2_klein_4b_fp8 = StarterModel(
-    name="FLUX.2 Klein 4B (FP8)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors",
-    description="FLUX.2 Klein 4B FP8 quantized - smaller and faster. Installs with VAE and Qwen3 4B encoder. ~4GB",
-    type=ModelType.Main,
-    dependencies=[flux2_vae, flux2_klein_qwen3_4b_encoder],
-)
-
-flux2_klein_9b = StarterModel(
-    name="FLUX.2 Klein 9B (Diffusers)",
-    base=BaseModelType.Flux2,
-    source="black-forest-labs/FLUX.2-klein-9B",
-    description="FLUX.2 Klein 9B in Diffusers format - includes transformer, VAE and Qwen3 encoder. ~35GB",
-    type=ModelType.Main,
-)
-
-flux2_klein_9b_fp8 = StarterModel(
-    name="FLUX.2 Klein 9B (FP8)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors",
-    description="FLUX.2 Klein 9B FP8 quantized - more efficient than full precision. Installs with VAE and Qwen3 8B encoder. ~9.5GB",
-    type=ModelType.Main,
-    dependencies=[flux2_vae, flux2_klein_qwen3_8b_encoder],
-)
-
-flux2_klein_4b_sdnq = StarterModel(
-    name="FLUX.2 Klein 4B (SDNQ dynamic 4-bit)",
-    base=BaseModelType.Flux2,
-    source="Disty0/FLUX.2-klein-4B-SDNQ-4bit-dynamic",
-    description="FLUX.2 Klein 4B quantized via SDNQ to dynamic uint4/int5 mixed precision. "
-    "Full self-contained Flux2KleinPipeline (transformer + Qwen3 4B + AutoencoderKLFlux2). ~5GB",
-    type=ModelType.Main,
-    format=ModelFormat.SDNQQuantized,
-)
-
-flux2_klein_9b_sdnq = StarterModel(
-    name="FLUX.2 Klein 9B (SDNQ dynamic 4-bit + SVD)",
-    base=BaseModelType.Flux2,
-    source="Disty0/FLUX.2-klein-9B-SDNQ-4bit-dynamic-svd-r32",
-    description="FLUX.2 Klein 9B quantized via SDNQ to dynamic uint4/int5 + SVD rank 32. "
-    "Full self-contained Flux2KleinPipeline. ~13GB",
-    type=ModelType.Main,
-    format=ModelFormat.SDNQQuantized,
-)
-
-flux2_klein_4b_gguf_q4 = StarterModel(
-    name="FLUX.2 Klein 4B (GGUF Q4)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/unsloth/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q4_K_M.gguf",
-    description="FLUX.2 Klein 4B GGUF Q4_K_M quantized - runs on 6-8GB VRAM. Installs with VAE and Qwen3 4B encoder. ~2.6GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_klein_qwen3_4b_encoder],
-)
-
-flux2_klein_4b_gguf_q8 = StarterModel(
-    name="FLUX.2 Klein 4B (GGUF Q8)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/unsloth/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q8_0.gguf",
-    description="FLUX.2 Klein 4B GGUF Q8_0 quantized - higher quality than Q4. Installs with VAE and Qwen3 4B encoder. ~4.3GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_klein_qwen3_4b_encoder],
-)
-
-flux2_klein_9b_gguf_q4 = StarterModel(
-    name="FLUX.2 Klein 9B (GGUF Q4)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q4_K_M.gguf",
-    description="FLUX.2 Klein 9B GGUF Q4_K_M quantized - runs on 12GB+ VRAM. Installs with VAE and Qwen3 8B encoder. ~5.8GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_klein_qwen3_8b_encoder],
-)
-
-flux2_klein_9b_gguf_q8 = StarterModel(
-    name="FLUX.2 Klein 9B (GGUF Q8)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/resolve/main/flux-2-klein-9b-Q8_0.gguf",
-    description="FLUX.2 Klein 9B GGUF Q8_0 quantized - higher quality than Q4. Installs with VAE and Qwen3 8B encoder. ~10GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_klein_qwen3_8b_encoder],
-)
-# endregion
-
-# region FLUX.2 [dev]
-#
-# FLUX.2 [dev] is BFL's 32B guidance-distilled rectified-flow model. The bf16
-# transformer alone is ~64 GB, so most users want the GGUF quantizations from
-# the curated `gguf-org/flux2-dev-gguf` repo (the same repo also ships the
-# matching "cow-mistral3-small" text encoder — a FLUX.2-specific 30-layer
-# Mistral distillation that BFL trained the joint attention against; the
-# README notes "Q2 works, but use a higher tier encoder for better prompt
-# adherence"). All FLUX.2 [dev] releases are governed by the FLUX.2
-# Non-Commercial License.
-
-# --- Text encoders ---
-# FLUX.2 [dev] reads Mistral hidden states at indices (10, 20, 30). Two encoders work:
-#   - The 40-layer Mistral Small 3 (24B) that BFL ships as the canonical
-#     FLUX.2-dev/text_encoder — the default; loads fine but has visibly weaker prompt
-#     adherence because those indices land at different relative depths.
-#   - The 30-layer "cow-mistral3-small" distillation — recommended for best adherence
-#     (on a 30-layer model the indices hit 1/3, 2/3, last, matching what the joint
-#     attention was trained against). The gguf-org cow GGUFs and Comfy-Org's safetensors
-#     are the same 30-layer cow weights, just packaged differently.
-
-# Comfy-Org safetensors (single-file, 30-layer cow, with embedded Tekken tokenizer).
-# Higher precision than the cow GGUFs and avoids the Tekken-via-HF-Hub fetch.
-flux2_dev_comfy_mistral_fp8 = StarterModel(
-    name="FLUX.2 [dev] Mistral Encoder (Comfy FP8)",
-    base=BaseModelType.Any,
-    source="https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/text_encoders/mistral_3_small_flux2_fp8.safetensors",
-    description="Comfy-Org FP8 of BFL's 30-layer cow-mistral3-small. Best quality/size for prompt adherence; embeds Tekken tokenizer (no HF fetch needed). ~18GB",
-    type=ModelType.MistralEncoder,
-)
-
-flux2_dev_comfy_mistral_bf16 = StarterModel(
-    name="FLUX.2 [dev] Mistral Encoder (Comfy BF16)",
-    base=BaseModelType.Any,
-    source="https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/text_encoders/mistral_3_small_flux2_bf16.safetensors",
-    description="Comfy-Org BF16 of BFL's 30-layer cow-mistral3-small. Reference precision; embeds Tekken tokenizer. ~35.6GB",
-    type=ModelType.MistralEncoder,
-)
-
-flux2_dev_comfy_mistral_fp4 = StarterModel(
-    name="FLUX.2 [dev] Mistral Encoder (Comfy FP4 mixed)",
-    base=BaseModelType.Any,
-    source="https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/text_encoders/mistral_3_small_flux2_fp4_mixed.safetensors",
-    description="Comfy-Org FP4-mixed of BFL's 30-layer cow-mistral3-small. Smallest safetensors variant; embeds Tekken tokenizer. ~12.3GB",
-    type=ModelType.MistralEncoder,
-)
-
-# gguf-org cow GGUF variants (30-layer cow, llama.cpp packaging, also embed Tekken).
-# Lower memory footprint than the Comfy safetensors but slightly lower fidelity.
-flux2_dev_cow_mistral_q4 = StarterModel(
-    name="FLUX.2 [dev] cow Mistral Encoder (GGUF Q4)",
-    base=BaseModelType.Any,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/cow-mistral3-small-q4_0.gguf",
-    description="cow-mistral3-small Q4_0 — 30-layer cow distillation BFL trained against. ~11.6GB",
-    type=ModelType.MistralEncoder,
-    format=ModelFormat.GGUFQuantized,
-)
-
-flux2_dev_cow_mistral_q8 = StarterModel(
-    name="FLUX.2 [dev] cow Mistral Encoder (GGUF Q8)",
-    base=BaseModelType.Any,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/cow-mistral3-small-q8_0.gguf",
-    description="cow-mistral3-small Q8_0 — best prompt adherence among cow GGUF quants. ~20GB",
-    type=ModelType.MistralEncoder,
-    format=ModelFormat.GGUFQuantized,
-)
-
-flux2_dev_cow_mistral_iq4_xs = StarterModel(
-    name="FLUX.2 [dev] cow Mistral Encoder (GGUF IQ4_XS)",
-    base=BaseModelType.Any,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/cow-mistral3-small-iq4_xs.gguf",
-    description="cow-mistral3-small IQ4_XS — smallest usable quant with reasonable adherence. ~11.1GB",
-    type=ModelType.MistralEncoder,
-    format=ModelFormat.GGUFQuantized,
-)
-
-# --- Diffusers transformer ---
-flux2_dev_diffusers = StarterModel(
-    name="FLUX.2 [dev] (Diffusers)",
-    base=BaseModelType.Flux2,
-    source="black-forest-labs/FLUX.2-dev",
-    description="FLUX.2 [dev] full Diffusers pipeline - includes transformer, VAE, and Mistral text encoder. ~80GB. Non-Commercial License.",
-    type=ModelType.Main,
-)
-
-flux2_dev_diffusers_nf4 = StarterModel(
-    name="FLUX.2 [dev] (Diffusers, NF4)",
-    base=BaseModelType.Flux2,
-    source="diffusers/FLUX.2-dev-bnb-4bit",
-    description="FLUX.2 [dev] with NF4-quantized DiT and text encoder - runs on ~18GB VRAM with offload. Non-Commercial License.",
-    type=ModelType.Main,
-)
-
-# --- GGUF transformers from gguf-org/flux2-dev-gguf (canonical repo) ---
-# These are the GGUFs BFL/community curate for cow-paired inference. Default
-# encoder dependency is cow Q4 to make starter installs work out of the box.
-flux2_dev_gguf_q3_k_m = StarterModel(
-    name="FLUX.2 [dev] Transformer (GGUF Q3_K_M)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/flux2-dev-q3_k_m.gguf",
-    description="FLUX.2 [dev] transformer Q3_K_M — fits ~12GB VRAM with offload. ~15.9GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_dev_cow_mistral_q4],
-)
-
-flux2_dev_gguf_q4_k_m = StarterModel(
-    name="FLUX.2 [dev] Transformer (GGUF Q4_K_M)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/flux2-dev-q4_k_m.gguf",
-    description="FLUX.2 [dev] transformer Q4_K_M — good quality / size tradeoff. ~20GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_dev_cow_mistral_q4],
-)
-
-flux2_dev_gguf_q5_k_m = StarterModel(
-    name="FLUX.2 [dev] Transformer (GGUF Q5_K_M)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/flux2-dev-q5_k_m.gguf",
-    description="FLUX.2 [dev] transformer Q5_K_M — higher fidelity than Q4. ~24GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_dev_cow_mistral_q8],
-)
-
-flux2_dev_gguf_q6_k = StarterModel(
-    name="FLUX.2 [dev] Transformer (GGUF Q6_K)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/flux2-dev-q6_k.gguf",
-    description="FLUX.2 [dev] transformer Q6_K — near-Q8 quality at lower size. ~27.9GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_dev_cow_mistral_q8],
-)
-
-flux2_dev_gguf_q8_0 = StarterModel(
-    name="FLUX.2 [dev] Transformer (GGUF Q8_0)",
-    base=BaseModelType.Flux2,
-    source="https://huggingface.co/gguf-org/flux2-dev-gguf/resolve/main/flux2-dev-q8_0.gguf",
-    description="FLUX.2 [dev] transformer Q8_0 — highest GGUF fidelity. ~35.5GB",
-    type=ModelType.Main,
-    format=ModelFormat.GGUFQuantized,
-    dependencies=[flux2_vae, flux2_dev_cow_mistral_q8],
-)
-# endregion
-
 # region Z-Image
 z_image_qwen3_encoder = StarterModel(
     name="Z-Image Qwen3 Text Encoder",
@@ -1359,20 +735,18 @@ z_image_turbo_quantized = StarterModel(
     name="Z-Image Turbo (quantized)",
     base=BaseModelType.ZImage,
     source="https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q4_K.gguf",
-    description="Z-Image Turbo quantized to GGUF Q4_K format. Requires standalone Qwen3 text encoder and Flux VAE. ~4GB",
+    description="Z-Image Turbo quantized to GGUF Q4_K format. ~4GB",
     type=ModelType.Main,
     format=ModelFormat.GGUFQuantized,
-    dependencies=[z_image_qwen3_encoder_quantized, flux_vae],
 )
 
 z_image_turbo_q8 = StarterModel(
     name="Z-Image Turbo (Q8)",
     base=BaseModelType.ZImage,
     source="https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
-    description="Z-Image Turbo quantized to GGUF Q8_0 format. Higher quality, larger size. Requires standalone Qwen3 text encoder and Flux VAE. ~6.6GB",
+    description="Z-Image Turbo quantized to GGUF Q8_0 format. Higher quality, larger size. ~6.6GB",
     type=ModelType.Main,
     format=ModelFormat.GGUFQuantized,
-    dependencies=[z_image_qwen3_encoder_quantized, flux_vae],
 )
 
 z_image_turbo_sdnq = StarterModel(
@@ -2170,6 +1544,7 @@ seedream_4_0 = StarterModel(
 # Seedream 3.0 T2I (seedream-3-0-t2i-250415) removed — deprecated by BytePlus, replaced by seedream-4-0-250828.
 
 # DALL-E 2 removed — deprecated by OpenAI, shutdown May 12, 2026.
+# endregion
 # region Anima
 anima_qwen3_encoder = StarterModel(
     name="Anima Qwen3 0.6B Text Encoder",
@@ -2281,12 +1656,6 @@ ideogram_4_fp8 = StarterModel(
 # List of starter models, displayed on the frontend.
 # The order/sort of this list is not changed by the frontend - set it how you want it here.
 STARTER_MODELS: list[StarterModel] = [
-    flux_kontext_quantized,
-    flux_schnell_quantized,
-    flux_dev_quantized,
-    flux_schnell,
-    flux_dev,
-    flux_schnell_sdnq,
     sd35_medium,
     sd35_large,
     ideogram_4_nf4,
@@ -2297,23 +1666,11 @@ STARTER_MODELS: list[StarterModel] = [
     dreamshaper_8_inpainting_sd1,
     deliberate_sd1,
     deliberate_inpainting_sd1,
-    juggernaut_sdxl,
-    dreamshaper_sdxl,
-    archvis_sdxl,
-    sdxl_refiner,
-    sdxl_fp16_vae_fix,
-    flux_vae,
-    alien_lora_sdxl,
-    noodle_lora_sdxl,
     easy_neg_sd1,
     ip_adapter_sd1,
     ip_adapter_plus_sd1,
     ip_adapter_plus_face_sd1,
-    ip_adapter_sdxl,
-    ip_adapter_plus_sdxl,
-    ip_adapter_flux,
     qr_code_cnet_sd1,
-    qr_code_cnet_sdxl,
     canny_sd1,
     inpaint_cnet_sd1,
     mlsd_sd1,
@@ -2327,22 +1684,9 @@ STARTER_MODELS: list[StarterModel] = [
     softedge_sd1,
     shuffle_sd1,
     tile_sd1,
-    canny_sdxl,
-    depth_sdxl,
-    softedge_sdxl,
-    openpose_sdxl,
-    scribble_sdxl,
-    tile_sdxl,
-    union_cnet_sdxl,
-    union_cnet_flux,
-    flux_canny_control_lora,
-    flux_depth_control_lora,
     t2i_canny_sd1,
     t2i_sketch_sd1,
     t2i_depth_sd1,
-    t2i_canny_sdxl,
-    t2i_lineart_sdxl,
-    t2i_sketch_sdxl,
     realesrgan_x4,
     animesharp_v4_rcan,
     realesrgan_x2,
@@ -2352,41 +1696,11 @@ STARTER_MODELS: list[StarterModel] = [
     t5_gguf_q3_k_s_encoder,
     t5_gguf_q6_k_encoder,
     clip_l_encoder,
-    siglip,
-    flux_redux,
     llava_onevision,
     llava_onevision_7b,
     qwen2_5_1_5b_instruct,
     qwen2_5_3b_instruct,
     smollm2_1_7b_instruct,
-    flux_fill,
-    flux2_vae,
-    flux2_klein_4b,
-    flux2_klein_4b_single,
-    flux2_klein_4b_fp8,
-    flux2_klein_9b,
-    flux2_klein_9b_fp8,
-    flux2_klein_4b_sdnq,
-    flux2_klein_9b_sdnq,
-    flux2_klein_4b_gguf_q4,
-    flux2_klein_4b_gguf_q8,
-    flux2_klein_9b_gguf_q4,
-    flux2_klein_9b_gguf_q8,
-    flux2_klein_qwen3_4b_encoder,
-    flux2_klein_qwen3_8b_encoder,
-    flux2_dev_comfy_mistral_bf16,
-    flux2_dev_comfy_mistral_fp4,
-    flux2_dev_comfy_mistral_fp8,
-    flux2_dev_cow_mistral_iq4_xs,
-    flux2_dev_cow_mistral_q4,
-    flux2_dev_cow_mistral_q8,
-    flux2_dev_diffusers,
-    flux2_dev_diffusers_nf4,
-    flux2_dev_gguf_q3_k_m,
-    flux2_dev_gguf_q4_k_m,
-    flux2_dev_gguf_q5_k_m,
-    flux2_dev_gguf_q6_k,
-    flux2_dev_gguf_q8_0,
     cogview4,
     qwen_image_vae,
     qwen_vl_encoder_fp8,
@@ -2405,8 +1719,6 @@ STARTER_MODELS: list[StarterModel] = [
     qwen_image_gguf_q8_0,
     qwen_image_lightning_4step,
     qwen_image_lightning_8step,
-    flux_krea,
-    flux_krea_quantized,
     z_image_turbo,
     z_image_turbo_quantized,
     z_image_turbo_q8,
@@ -2469,10 +1781,6 @@ STARTER_MODELS: list[StarterModel] = [
     anima_lllite_lineart_preview3,
     anima_lllite_pose_preview3,
     gemma2_2b_encoder,
-    pid_decoder_flux_2k,
-    pid_decoder_flux_2kto4k,
-    pid_decoder_flux2_2k,
-    pid_decoder_flux2_2kto4k,
     pid_decoder_sd3_2k,
     pid_decoder_sd3_2kto4k,
     pid_decoder_sdxl_2kto4k,
@@ -2501,48 +1809,11 @@ sd1_bundle: list[StarterModel] = [
     swinir,
 ]
 
-sdxl_bundle: list[StarterModel] = [
-    juggernaut_sdxl,
-    sdxl_fp16_vae_fix,
-    ip_adapter_sdxl,
-    ip_adapter_plus_sdxl,
-    canny_sdxl,
-    depth_sdxl,
-    softedge_sdxl,
-    openpose_sdxl,
-    scribble_sdxl,
-    tile_sdxl,
-    swinir,
-]
-
-flux_bundle: list[StarterModel] = [
-    flux_schnell_quantized,
-    flux_dev_quantized,
-    flux_vae,
-    t5_8b_quantized_encoder,
-    clip_l_encoder,
-    union_cnet_flux,
-    ip_adapter_flux,
-    flux_canny_control_lora,
-    flux_depth_control_lora,
-    flux_redux,
-    flux_fill,
-    flux_kontext_quantized,
-    flux_krea_quantized,
-]
-
 zimage_bundle: list[StarterModel] = [
     z_image_turbo_quantized,
     z_image_qwen3_encoder_quantized,
     z_image_controlnet_union,
     z_image_controlnet_tile,
-    flux_vae,
-]
-
-flux2_klein_bundle: list[StarterModel] = [
-    flux2_klein_4b_gguf_q4,
-    flux2_vae,
-    flux2_klein_qwen3_4b_encoder,
 ]
 
 # Turbo only: both checkpoints are 8B and the full pipeline is a large download, so the bundle
@@ -2615,9 +1886,6 @@ ideogram_bundle: list[StarterModel] = [
 
 STARTER_BUNDLES: dict[str, StarterModelBundle] = {
     BaseModelType.StableDiffusion1: StarterModelBundle(name="Stable Diffusion 1.5", models=sd1_bundle),
-    BaseModelType.StableDiffusionXL: StarterModelBundle(name="SDXL", models=sdxl_bundle),
-    BaseModelType.Flux: StarterModelBundle(name="FLUX.1 dev", models=flux_bundle),
-    BaseModelType.Flux2: StarterModelBundle(name="FLUX.2 Klein", models=flux2_klein_bundle),
     BaseModelType.ZImage: StarterModelBundle(name="Z-Image Turbo", models=zimage_bundle),
     BaseModelType.ErnieImage: StarterModelBundle(name="ERNIE-Image", models=ernie_image_bundle),
     BaseModelType.QwenImage: StarterModelBundle(name="Qwen Image", models=qwen_image_bundle),

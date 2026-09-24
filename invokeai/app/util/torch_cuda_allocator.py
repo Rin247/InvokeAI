@@ -49,4 +49,4 @@ def configure_torch_cuda_allocator(pytorch_cuda_alloc_conf: str, logger: logging
             "not imported before calling configure_torch_cuda_allocator()."
         )
 
-    logger.info(f"PyTorch CUDA memory allocator: {torch.cuda.get_allocator_backend()}")
+    logger.debug(f"PyTorch CUDA memory allocator: {torch.cuda.get_allocator_backend()}")

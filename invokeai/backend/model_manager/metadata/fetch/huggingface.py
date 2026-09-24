@@ -9,7 +9,7 @@ Usage:
 from invokeai.backend.model_manager.metadata.fetch import HuggingFaceMetadataFetch
 
 fetcher = HuggingFaceMetadataFetch()
-metadata = fetcher.from_url("https://huggingface.co/stabilityai/sdxl-turbo")
+metadata = fetcher.from_url("https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0")
 print(metadata.tags)
 """
 

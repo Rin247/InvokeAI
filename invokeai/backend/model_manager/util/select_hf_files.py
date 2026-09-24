@@ -69,7 +69,6 @@ def filter_files(
                 "lora_weights.safetensors",
                 "weights.pb",
                 "onnx_data",
-                "spiece.model",  # Added for `black-forest-labs/FLUX.1-schnell`.
             )
         ):
             paths.append(file)
@@ -114,9 +113,6 @@ def _filter_by_variant(files: List[Path], variant: ModelRepoVariant) -> Set[Path
             if variant == ModelRepoVariant.Flax:
                 result.add(path)
 
-        # Note: '.model' was added to support:
-        # https://huggingface.co/black-forest-labs/FLUX.1-schnell/blob/768d12a373ed5cc9ef9a9dea7504dc09fcc14842/tokenizer_2/spiece.model
-        # Note: '.jinja' was added to support chat templates for FLUX.2 Klein models
         elif path.suffix in [".json", ".txt", ".model", ".jinja"]:
             result.add(path)
 
@@ -178,8 +174,7 @@ def _filter_by_variant(files: List[Path], variant: ModelRepoVariant) -> Set[Path
         if not at_least_one_fp16:
             # If none of the candidates in this candidate_list have the explicit fp16 variant label, then this
             # candidate_list probably doesn't adhere to the variant naming convention that we expected. In this case,
-            # we'll simply keep all the candidates. An example of a model that hits this case is
-            # `black-forest-labs/FLUX.1-schnell` (as of commit 012d2fd).
+            # we'll simply keep all the candidates.
             for candidate in candidate_list:
                 result.add(candidate.path)
 
