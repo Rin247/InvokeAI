@@ -54,14 +54,7 @@ dependencies = [
   "sentencepiece>=0.2.2",                 # 0.2.0 fails to build on Python 3.14+; 0.2.1 coredumps windows when loading t5 tokenizer
   "spandrel",
   # Loosely pinned, will respect requirement of `diffusers[torch]`. Split by platform: linux/win allow
-  # >=2.10 so the rocm extra can use torch 2.10.0+rocm7.1, while macOS stays on 2.7.x — newer macOS torch
-  # wheels exercise MPS on CI runners (no usable Metal GPU) and fail with MPS OOM.
-  # Deliberately NOT capped below 2.12 here. torch 2.12.x+rocm7.1 is reported to break generation (#9410), but
-  # this range is what every backend-agnostic install resolves against — manual installs use
-  # `--torch-backend=<x>` with no extra (see docs/start-here/manual), so a blanket cap would also
-  # reject torch>=2.12 on Windows/Linux CUDA, CPU and ARM64, where 2.12 has no known problem.
-  # The ROCm path is constrained where it can actually be targeted: the `rocm` extra below pins an
-  # exact version, and the manual docs carry the ROCm-specific caveat.
+# Core generation dependencies, pinned for reproducible builds.
   "torch>=2.14.0,<3.0; sys_platform != 'darwin'",
   "torch>=2.14.0,<2.15.0; sys_platform == 'darwin'",
   "torchsde",                             # diffusers needs this for SDE solvers, but it is not an explicit dep of diffusers
@@ -118,7 +111,7 @@ dependencies = [
   # torch 2.4+cu carries its own triton dependency
 ]
 
-# The +cpu/+cu134/+rocm7.14 pins live on PyTorch's WHL indexes. torchvision has no
+# The +cpu/+cu134 pins live on PyTorch's WHL indexes. torchvision has no
 # linux_aarch64 wheels there (torch does for +cpu/+cu134), so on linux_aarch64 these
 # pins are unsatisfiable and are gated behind a marker that excludes only that
 # platform; every other platform (Windows, macOS, Linux x86_64) is unaffected. On
@@ -142,18 +135,11 @@ dependencies = [
   "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
   "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
-"rocm" = [
-  "torch==2.14.0+rocm10.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
-  "torchvision==0.29.0+rocm10.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
-  "triton-rocm==3.8.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
-  "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
-  "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
-]
 # Intel XPU (Arc / Battlemage) wheels are published only for linux-x86_64 and
 # windows-amd64 on PyTorch's WHL index. Gate the +xpu pins to those platforms; the
 # Intel oneAPI runtime libs (intel-sycl-rt, etc.) come in automatically as deps of
 # torch+xpu.
-# Pinned ahead of the cpu/cuda extras (2.14.0), as the rocm extra already is. Intel's XPU
+# Pinned ahead of the cpu/cuda extras (2.14.0). Intel's XPU
 # backend matured considerably after 2.14.0: torch.xpu.mem_get_info() works on driver/kernel
 # combinations where it previously raised, and the bundled oneAPI runtime ships with the wheel
 # (intel-sycl-rt), so upgrading torch upgrades the user-space runtime too.
@@ -195,10 +181,10 @@ dependencies = [
 # Prevent opencv-python from ever being chosen during dependency resolution.
 # This prevents conflicts with opencv-contrib-python, which Invoke requires.
 override-dependencies = ["opencv-python; sys_platform=='never'"]
-conflicts = [[{ extra = "cpu" }, { extra = "cuda" }, { extra = "rocm" }, { extra = "xpu" }]]
+conflicts = [[{ extra = "cpu" }, { extra = "cuda" }, { extra = "xpu" }]]
 index-strategy = "unsafe-best-match"
 # Restrict resolution to the platforms we support: x86_64/aarch64 Linux, Windows,
-# and macOS. (ROCm and the PyTorch WHL-index pins are x86_64-only; on aarch64
+# and macOS. (The PyTorch WHL-index pins are x86_64-only; on aarch64
 # Linux torch/torchvision fall back to PyPI via the markers below.)
 environments = ["sys_platform == 'win32' or sys_platform == 'darwin' or (sys_platform == 'linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64'))"]
 
@@ -247,11 +233,6 @@ explicit = true
 [[tool.uv.index]]
 name = "torch-cuda"
 url = "https://download.pytorch.org/whl/cu134"
-explicit = true
-
-[[tool.uv.index]]
-name = "torch-rocm"
-url = "https://download.pytorch.org/whl/rocm7.14"
 explicit = true
 
 [[tool.uv.index]]
