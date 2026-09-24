@@ -1,8 +1,5 @@
-<div align="center">
 
 # Invoke - Professional Creative AI Tools for Visual Media
-
-</div>
 
 
 Invoke is a leading creative engine built to empower professionals and enthusiasts alike. Generate and create stunning visual media using the latest AI-driven technologies. Invoke offers an industry leading web-based UI, and serves as the foundation for multiple commercial products.
