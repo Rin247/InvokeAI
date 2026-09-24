@@ -96,9 +96,6 @@ export type OffsetPaginatedResults_ImageDTO_ = S['OffsetPaginatedResults_ImageDT
 // Model Configs
 type InternalAnyModelConfig = S['AnyModelConfig'];
 export type MainModelConfig = Extract<InternalAnyModelConfig, { type: 'main' }>;
-type FLUXModelConfig = Extract<InternalAnyModelConfig, { type: 'main'; base: 'flux' }>;
-type FLUX2ModelConfig = Extract<InternalAnyModelConfig, { type: 'main'; base: 'flux2' }>;
-export type AnyFLUXModelConfig = FLUXModelConfig | FLUX2ModelConfig;
 export type ControlLoRAModelConfig = Extract<InternalAnyModelConfig, { type: 'control_lora' }>;
 export type LoRAModelConfig = Extract<InternalAnyModelConfig, { type: 'lora' }>;
 type WanLoRAModelConfig = Extract<InternalAnyModelConfig, { type: 'lora'; base: 'wan' }>;
@@ -128,10 +125,8 @@ export type SpandrelImageToImageModelConfig = Extract<InternalAnyModelConfig, { 
 export type CheckpointModelConfig = Extract<InternalAnyModelConfig, { type: 'main'; format: 'checkpoint' }>;
 export type CLIPVisionModelConfig = Extract<InternalAnyModelConfig, { type: 'clip_vision' }>;
 export type SigLIPModelConfig = Extract<InternalAnyModelConfig, { type: 'siglip' }>;
-export type FLUXReduxModelConfig = Extract<InternalAnyModelConfig, { type: 'flux_redux' }>;
 type ApiModelConfig = Extract<InternalAnyModelConfig, { format: 'api' }>;
 type UnknownModelConfig = Extract<InternalAnyModelConfig, { type: 'unknown' }>;
-export type FLUXKontextModelConfig = MainModelConfig;
 export type ChatGPT4oModelConfig = ApiModelConfig;
 export type Gemini2_5ModelConfig = ApiModelConfig;
 type SubmodelDefinition = S['SubmodelDefinition'];
@@ -279,31 +274,6 @@ export const isVAEModelConfig = (config: AnyModelConfig): config is VAEModelConf
   return config.type === 'vae';
 };
 
-export const isNonFluxVAEModelConfig = (
-  config: AnyModelConfig,
-  excludeSubmodels?: boolean
-): config is VAEModelConfig => {
-  return (
-    (config.type === 'vae' || (!excludeSubmodels && config.type === 'main' && checkSubmodels(['vae'], config))) &&
-    config.base !== 'flux' &&
-    config.base !== 'flux2'
-  );
-};
-
-export const isFlux1VAEModelConfig = (config: AnyModelConfig, excludeSubmodels?: boolean): config is VAEModelConfig => {
-  return (
-    (config.type === 'vae' || (!excludeSubmodels && config.type === 'main' && checkSubmodels(['vae'], config))) &&
-    config.base === 'flux'
-  );
-};
-
-export const isFlux2VAEModelConfig = (config: AnyModelConfig, excludeSubmodels?: boolean): config is VAEModelConfig => {
-  return (
-    (config.type === 'vae' || (!excludeSubmodels && config.type === 'main' && checkSubmodels(['vae'], config))) &&
-    config.base === 'flux2'
-  );
-};
-
 export const isWanVAEModelConfig = (config: AnyModelConfig, excludeSubmodels?: boolean): config is VAEModelConfig => {
   return (
     (config.type === 'vae' || (!excludeSubmodels && config.type === 'main' && checkSubmodels(['vae'], config))) &&
@@ -333,12 +303,11 @@ const isAnimaCompatibleWanVAEModelConfig = (config: AnyModelConfig): config is V
 /**
  * VAEs the Anima model loader accepts, gated on the backend's latent geometry rather than on base
  * alone. `AnimaModelLoaderInvocation.vae_model` carries no `ui_model_base`, and both `anima_l2i` and
- * `anima_i2l` branch explicitly on `FluxAutoEncoder` (4D decode, no Wan denormalisation) beside
- * `AutoencoderKLWan` - so an Anima-base VAE, a FLUX VAE and a 16-channel Wan VAE are all supported,
- * not merely tolerated.
+ * `anima_i2l` branch explicitly on `AutoencoderKLWan` - so an Anima-base VAE and a 16-channel Wan VAE
+ * are all supported, not merely tolerated.
  *
  * Kept separate from `isAnimaVAEModelConfig`, which stays base-driven because Krea-2 draws its
- * own VAE pool from it and must not be offered FLUX or Wan VAEs.
+ * own VAE pool from it and must not be offered Wan VAEs.
  */
 export const isAnimaCompatibleVAEModelConfig = (
   config: AnyModelConfig,
@@ -346,7 +315,6 @@ export const isAnimaCompatibleVAEModelConfig = (
 ): config is VAEModelConfig => {
   return (
     isAnimaVAEModelConfig(config, excludeSubmodels) ||
-    isFlux1VAEModelConfig(config, excludeSubmodels) ||
     isAnimaCompatibleWanVAEModelConfig(config)
   );
 };
@@ -500,10 +468,6 @@ export const isSigLipModelConfig = (config: AnyModelConfig): config is SigLIPMod
   return config.type === 'siglip';
 };
 
-export const isFluxReduxModelConfig = (config: AnyModelConfig): config is FLUXReduxModelConfig => {
-  return config.type === 'flux_redux';
-};
-
 export const isExternalApiModelConfig = (
   config: AnyModelConfigWithExternal | null | undefined
 ): config is ExternalApiModelConfig => {
@@ -514,12 +478,8 @@ export const isUnknownModelConfig = (config: AnyModelConfig): config is UnknownM
   return config.type === 'unknown';
 };
 
-export const isFluxKontextModelConfig = (config: AnyModelConfig): config is FLUXKontextModelConfig => {
-  return config.type === 'main' && config.base === 'flux' && config.name.toLowerCase().includes('kontext');
-};
-
 export const isNonRefinerMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return config.type === 'main' && config.base !== 'sdxl-refiner';
+  return config.type === 'main';
 };
 
 export const isMainOrExternalModelConfig = (
@@ -531,49 +491,14 @@ export const isMainOrExternalModelConfig = (
   return isNonRefinerMainModelConfig(config);
 };
 
-export const isRefinerMainModelModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return config.type === 'main' && config.base === 'sdxl-refiner';
-};
-
-const isFluxDevMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return config.type === 'main' && config.base === 'flux' && config.variant === 'dev';
-};
-
-const isFlux2Klein9BMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return config.type === 'main' && config.base === 'flux2' && config.name.toLowerCase().includes('9b');
-};
-
-const isFlux2DevMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return config.type === 'main' && config.base === 'flux2' && config.variant === 'dev';
-};
-
-export const isFlux2DevDiffusersMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return isFlux2DevMainModelConfig(config) && config.format === 'diffusers';
-};
-
 const isIdeogram4MainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
   return config.type === 'main' && config.base === 'ideogram-4';
 };
 
 export const isNonCommercialMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return (
-    isFluxDevMainModelConfig(config) ||
-    isFlux2Klein9BMainModelConfig(config) ||
-    isFlux2DevMainModelConfig(config) ||
-    isIdeogram4MainModelConfig(config)
-  );
+  return isIdeogram4MainModelConfig(config);
 };
 
-export const isFluxFillMainModelModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  return config.type === 'main' && config.base === 'flux' && config.variant === 'dev_fill';
-};
-
-/**
- * The submodels an SDNQ pipeline install must expose before it can act as a component source.
- * Mirrors `_REQUIRED_PIPELINE_SUBMODELS` / `is_self_contained_sdnq_pipeline()` in
- * `invokeai/app/invocations/model.py` — the frontend and the backend must agree on what "complete"
- * means, or the graph builders offer a source the invocation validation then rejects.
- */
 const SDNQ_PIPELINE_REQUIRED_SUBMODELS = ['transformer', 'vae', 'text_encoder', 'tokenizer'] as const;
 
 /**
@@ -588,36 +513,12 @@ export const isSelfContainedSDNQPipeline = (config: AnyModelConfig): boolean => 
   return hasSubmodels(config, SDNQ_PIPELINE_REQUIRED_SUBMODELS);
 };
 
-/**
- * FLUX.1 drives two text encoders, so a pipeline install can only replace the standalone components
- * if it also ships the T5 pair on top of the CLIP one. Mirrors
- * `_REQUIRED_FLUX1_PIPELINE_SUBMODELS` / `is_self_contained_sdnq_flux1_pipeline()` in
- * `invokeai/app/invocations/model.py`; if the two disagree, the UI either blocks a model the node
- * would have accepted or builds a graph the node then rejects.
- */
-const SDNQ_FLUX1_PIPELINE_REQUIRED_SUBMODELS = [
-  ...SDNQ_PIPELINE_REQUIRED_SUBMODELS,
-  'text_encoder_2',
-  'tokenizer_2',
-] as const;
-
 const hasSubmodels = (config: AnyModelConfig, required: readonly string[]): boolean => {
   const submodels = (config as { submodels?: unknown }).submodels;
   if (typeof submodels !== 'object' || submodels === null) {
     return false;
   }
   return required.every((submodel) => Boolean((submodels as Record<string, unknown>)[submodel]));
-};
-
-/**
- * True for a FLUX.1 SDNQ pipeline that ships every component the FLUX graph needs, so the
- * standalone T5 / CLIP / VAE selections are not required.
- */
-export const isSelfContainedSDNQFlux1Pipeline = (config: AnyModelConfig): boolean => {
-  if ((config as { format?: unknown }).format !== 'sdnq_quantized') {
-    return false;
-  }
-  return hasSubmodels(config, SDNQ_FLUX1_PIPELINE_REQUIRED_SUBMODELS);
 };
 
 export const isZImageDiffusersMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
@@ -634,22 +535,6 @@ export const isZImageDiffusersMainModelConfig = (config: AnyModelConfig): config
   // SDNQ-quantized ZImagePipeline folders carry the same submodels layout (transformer, vae,
   // text_encoder, ...) as a plain diffusers ZImagePipeline. Single-file SDNQ Z-Image
   // checkpoints have no submodels and must not match here, and neither may a partial pipeline.
-  if (format !== 'sdnq_quantized') {
-    return false;
-  }
-  return isSelfContainedSDNQPipeline(config);
-};
-
-export const isFlux2DiffusersMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
-  if (config.type !== 'main' || config.base !== 'flux2') {
-    return false;
-  }
-  // Same reasoning as isZImageDiffusersMainModelConfig: an SDNQ FLUX.2 pipeline folder ships
-  // the same submodels (transformer/text_encoder/tokenizer/vae) and qualifies as a source model.
-  const format = (config as { format?: unknown }).format as string | undefined;
-  if (format === 'diffusers') {
-    return true;
-  }
   if (format !== 'sdnq_quantized') {
     return false;
   }

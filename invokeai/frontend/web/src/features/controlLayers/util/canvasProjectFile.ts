@@ -107,7 +107,7 @@ export const collectImageNames = (canvasState: CanvasProjectState, refImages: Re
   for (const rg of canvasState.regionalGuidance) {
     collectFromObjects(rg.objects, names);
     for (const refImage of rg.referenceImages) {
-      if (refImage.config.type === 'ip_adapter' || refImage.config.type === 'flux_redux') {
+      if (refImage.config.type === 'ip_adapter') {
         collectFromImageWithDims(refImage.config.image, names);
       }
     }
@@ -207,7 +207,7 @@ export const remapCanvasState = (canvasState: CanvasProjectState, mapping: Map<s
   for (const rg of result.regionalGuidance) {
     rg.objects = remapObjects(rg.objects, mapping);
     for (const refImage of rg.referenceImages) {
-      if (refImage.config.type === 'ip_adapter' || refImage.config.type === 'flux_redux') {
+      if (refImage.config.type === 'ip_adapter') {
         refImage.config.image = remapImageWithDims(refImage.config.image, mapping);
       }
     }

@@ -43,7 +43,6 @@ import { isBatchNode, isExecutableNode, isInvocationNode } from 'features/nodes/
 import { resolveBatchValue } from 'features/nodes/util/node/resolveBatchValue';
 import type { UpscaleState } from 'features/parameters/store/upscaleSlice';
 import { selectUpscaleSlice } from 'features/parameters/store/upscaleSlice';
-import { isFlux2KleinQwen3Compatible } from 'features/parameters/util/flux2Klein';
 import { getGridSize, getPidScale } from 'features/parameters/util/optimalDimension';
 import { selectActiveTab } from 'features/ui/store/uiSelectors';
 import type { TabName } from 'features/ui/store/uiTypes';
@@ -51,11 +50,9 @@ import i18n from 'i18next';
 import { atom, computed } from 'nanostores';
 import { useEffect } from 'react';
 import { modelConfigsAdapterSelectors, selectModelConfigsQuery } from 'services/api/endpoints/models';
-import { selectFlux2DevDiffusersModels, selectFlux2DiffusersModels } from 'services/api/hooks/modelsByType';
 import type { AnyModelConfig, MainOrExternalModelConfig } from 'services/api/types';
 import {
   isExternalApiModelConfig,
-  isSelfContainedSDNQFlux1Pipeline,
   isSelfContainedSDNQPipeline,
   isWanSingleFileMainModelConfig,
 } from 'services/api/types';
@@ -142,13 +139,6 @@ const debouncedUpdateReasons = debounce(async (arg: UpdateReasonsArg) => {
   } = arg;
   if (tab === 'generate') {
     const model = selectMainModelConfig(store.getState());
-    const flux2DiffusersModels = selectFlux2DiffusersModels(store.getState());
-    const hasFlux2DiffusersVaeSource = flux2DiffusersModels.length > 0;
-    const modelVariant = model && 'variant' in model ? model.variant : undefined;
-    const hasFlux2DiffusersQwen3Source = flux2DiffusersModels.some(
-      (m) => 'variant' in m && isFlux2KleinQwen3Compatible(m.variant, modelVariant)
-    );
-    const hasFlux2DevDiffusersSource = selectFlux2DevDiffusersModels(store.getState()).length > 0;
     const reasons = await getReasonsWhyCannotEnqueueGenerateTab({
       isConnected,
       model,
@@ -156,21 +146,11 @@ const debouncedUpdateReasons = debounce(async (arg: UpdateReasonsArg) => {
       refImages,
       dynamicPrompts,
       loras,
-      hasFlux2DiffusersVaeSource,
-      hasFlux2DiffusersQwen3Source,
-      hasFlux2DevDiffusersSource,
       wanWiredConfigs: selectWanWiredConfigs(store.getState()),
     });
     $reasonsWhyCannotEnqueue.set(reasons);
   } else if (tab === 'canvas') {
     const model = selectMainModelConfig(store.getState());
-    const flux2DiffusersModels = selectFlux2DiffusersModels(store.getState());
-    const hasFlux2DiffusersVaeSource = flux2DiffusersModels.length > 0;
-    const modelVariant = model && 'variant' in model ? model.variant : undefined;
-    const hasFlux2DiffusersQwen3Source = flux2DiffusersModels.some(
-      (m) => 'variant' in m && isFlux2KleinQwen3Compatible(m.variant, modelVariant)
-    );
-    const hasFlux2DevDiffusersSource = selectFlux2DevDiffusersModels(store.getState()).length > 0;
     const reasons = await getReasonsWhyCannotEnqueueCanvasTab({
       isConnected,
       model,
@@ -184,9 +164,6 @@ const debouncedUpdateReasons = debounce(async (arg: UpdateReasonsArg) => {
       canvasIsCompositing,
       canvasIsSelectingObject,
       loras,
-      hasFlux2DiffusersVaeSource,
-      hasFlux2DiffusersQwen3Source,
-      hasFlux2DevDiffusersSource,
       wanWiredConfigs: selectWanWiredConfigs(store.getState()),
     });
     $reasonsWhyCannotEnqueue.set(reasons);
@@ -347,9 +324,6 @@ export const getReasonsWhyCannotEnqueueGenerateTab = (arg: {
   refImages: RefImagesState;
   loras: LoRA[];
   dynamicPrompts: DynamicPromptsState;
-  hasFlux2DiffusersVaeSource: boolean;
-  hasFlux2DiffusersQwen3Source: boolean;
-  hasFlux2DevDiffusersSource: boolean;
   /** Resolved configs of the wired Wan slots — null when empty or pointing at a model
    *  that no longer exists. Resolved by the caller because readiness only receives
    *  identifiers, and compatibility can only be judged from the config. */
@@ -366,9 +340,6 @@ export const getReasonsWhyCannotEnqueueGenerateTab = (arg: {
     refImages,
     loras,
     dynamicPrompts,
-    hasFlux2DiffusersVaeSource,
-    hasFlux2DiffusersQwen3Source,
-    hasFlux2DevDiffusersSource,
     wanWiredConfigs,
   } = arg;
   const { positivePrompt } = params;
@@ -390,71 +361,6 @@ export const getReasonsWhyCannotEnqueueGenerateTab = (arg: {
     // nothing else to validate
   } else if (isExternalApiModelConfig(model)) {
     // external models don't require local sub-models
-  } else if (model.base === 'flux') {
-    // A complete SDNQ FLUX.1 pipeline install ships its own T5, CLIP and VAE, and the model loader
-    // node falls back to them, so requiring the standalone selections here would keep that path
-    // unreachable from the UI. Anything else (single-file, GGUF, BnB) still needs all three.
-    const mainSuppliesComponents = isSelfContainedSDNQFlux1Pipeline(model);
-    if (!mainSuppliesComponents) {
-      if (!params.t5EncoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noT5EncoderModelSelected') });
-      }
-      if (!params.clipEmbedModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noCLIPEmbedModelSelected') });
-      }
-      if (!params.fluxVAE) {
-        reasons.push({ content: i18n.t('parameters.invoke.noFLUXVAEModelSelected') });
-      }
-    }
-    if (params.pidMode !== 'off') {
-      if (!params.pidDecoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noPidDecoderModelSelected') });
-      }
-      if (!params.gemma2EncoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noGemma2EncoderModelSelected') });
-      }
-    }
-  }
-
-  if (model?.base === 'flux2') {
-    // A FLUX.2 model is a self-sufficient source when its config exposes the diffusers-style
-    // submodels (transformer/vae/text_encoder/tokenizer). Plain Diffusers pipelines always do; an
-    // SDNQ pipeline qualifies only when it ships all of them — a truthy submodels dict is not enough,
-    // since a partial pipeline may expose only the transformer and the backend would then request
-    // missing fixed subfolders. Single-file / GGUF models have no submodels and need a standalone
-    // VAE + text encoder, or a Diffusers source of the matching variant family.
-    const mainIsPipeline =
-      model.format === 'diffusers' ||
-      ((model as { format?: unknown }).format === 'sdnq_quantized' && isSelfContainedSDNQPipeline(model));
-    if (!mainIsPipeline) {
-      if ('variant' in model && model.variant === 'dev') {
-        // FLUX.2 [dev]: needs FLUX.2 VAE + Mistral text encoder.
-        if (!params.flux2VaeModel && !hasFlux2DevDiffusersSource) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2DevVaeModelSelected') });
-        }
-        if (!params.flux2DevMistralEncoderModel && !hasFlux2DevDiffusersSource) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2DevMistralEncoderModelSelected') });
-        }
-      } else {
-        // FLUX.2 Klein: needs FLUX.2 VAE + Qwen3 text encoder (variant-matched).
-        if (!params.flux2VaeModel && !hasFlux2DiffusersVaeSource) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2KleinVaeModelSelected') });
-        }
-        if (!params.kleinQwen3EncoderModel && !hasFlux2DiffusersQwen3Source) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2KleinQwen3EncoderModelSelected') });
-        }
-      }
-    }
-  }
-
-  if (model?.base === 'flux2' && params.pidMode !== 'off') {
-    // PiD decode (any FLUX.2 format) needs both a PiD decoder and the Gemma-2 caption encoder.
-    if (!params.pidDecoderModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.noPidDecoderModelSelected') });
-    }
-    if (!params.gemma2EncoderModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.noGemma2EncoderModelSelected') });
-    }
   }
 
   if (model?.base === 'sd-3' && params.pidMode !== 'off') {
@@ -464,19 +370,6 @@ export const getReasonsWhyCannotEnqueueGenerateTab = (arg: {
     }
     if (!params.gemma2EncoderModel) {
       reasons.push({ content: i18n.t('parameters.invoke.noGemma2EncoderModelSelected') });
-    }
-  }
-
-  if (model?.base === 'sdxl' && params.pidMode !== 'off') {
-    // PiD decode needs the decoder + Gemma-2 encoder, and is not compatible with the SDXL Refiner.
-    if (!params.pidDecoderModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.noPidDecoderModelSelected') });
-    }
-    if (!params.gemma2EncoderModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.noGemma2EncoderModelSelected') });
-    }
-    if (params.refinerModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.pidIncompatibleWithRefiner') });
     }
   }
 
@@ -705,8 +598,8 @@ const getReasonsWhyCannotEnqueueUpscaleTab = (arg: {
 
   const model = params.model;
 
-  if (model && !['sd-1', 'sdxl'].includes(model.base)) {
-    // When we are using an upsupported model, do not add the other warnings
+  if (model && model.base !== 'sd-1') {
+    // When we are using an unsupported model, do not add the other warnings
     reasons.push({ content: i18n.t('upscaling.incompatibleBaseModel') });
   } else {
     // Using a compatible model, add all warnings
@@ -746,9 +639,6 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
   canvasIsRasterizing: boolean;
   canvasIsCompositing: boolean;
   canvasIsSelectingObject: boolean;
-  hasFlux2DiffusersVaeSource: boolean;
-  hasFlux2DiffusersQwen3Source: boolean;
-  hasFlux2DevDiffusersSource: boolean;
   /** Resolved configs of the wired Wan slots — null when empty or pointing at a model
    *  that no longer exists. Resolved by the caller because readiness only receives
    *  identifiers, and compatibility can only be judged from the config. */
@@ -771,9 +661,6 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
     canvasIsRasterizing,
     canvasIsCompositing,
     canvasIsSelectingObject,
-    hasFlux2DiffusersVaeSource,
-    hasFlux2DiffusersQwen3Source,
-    hasFlux2DevDiffusersSource,
     wanWiredConfigs,
   } = arg;
   const { positivePrompt } = params;
@@ -811,169 +698,6 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
     // nothing else to validate
   } else if (isExternalApiModelConfig(model)) {
     // external models don't require local sub-models
-  } else if (model.base === 'flux') {
-    // A complete SDNQ FLUX.1 pipeline install ships its own T5, CLIP and VAE, and the model loader
-    // node falls back to them, so requiring the standalone selections here would keep that path
-    // unreachable from the UI. Anything else (single-file, GGUF, BnB) still needs all three.
-    const mainSuppliesComponents = isSelfContainedSDNQFlux1Pipeline(model);
-    if (!mainSuppliesComponents) {
-      if (!params.t5EncoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noT5EncoderModelSelected') });
-      }
-      if (!params.clipEmbedModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noCLIPEmbedModelSelected') });
-      }
-      if (!params.fluxVAE) {
-        reasons.push({ content: i18n.t('parameters.invoke.noFLUXVAEModelSelected') });
-      }
-    }
-
-    const { bbox } = canvas;
-    // In PiD native mode the bbox is the 4x target, so it must snap to a larger grid (16 * 4) for bbox / 4 to land
-    // on the FLUX grid. getPidScale returns 1 for off/fit, leaving the normal 16px grid.
-    const gridSize = getGridSize('flux', getPidScale(params.pidMode));
-
-    if (params.pidMode !== 'off') {
-      if (!params.pidDecoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noPidDecoderModelSelected') });
-      }
-      if (!params.gemma2EncoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noGemma2EncoderModelSelected') });
-      }
-      // PiD decodes at 4x the generation resolution; "Scale Before Processing" would inflate the generation
-      // size and blow up the decode. Require it to be off (None) so generation == bbox.
-      if (bbox.scaleMethod !== 'none') {
-        reasons.push({ content: i18n.t('parameters.invoke.pidScaleBeforeProcessingMustBeOff') });
-      }
-    }
-
-    if (bbox.scaleMethod === 'none') {
-      if (bbox.rect.width % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleBboxWidth', {
-            model: 'FLUX',
-            width: bbox.rect.width,
-            multiple: gridSize,
-          }),
-        });
-      }
-      if (bbox.rect.height % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleBboxHeight', {
-            model: 'FLUX',
-            height: bbox.rect.height,
-            multiple: gridSize,
-          }),
-        });
-      }
-    } else {
-      if (bbox.scaledSize.width % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleScaledBboxWidth', {
-            model: 'FLUX',
-            width: bbox.scaledSize.width,
-            multiple: gridSize,
-          }),
-        });
-      }
-      if (bbox.scaledSize.height % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleScaledBboxHeight', {
-            model: 'FLUX',
-            height: bbox.scaledSize.height,
-            multiple: gridSize,
-          }),
-        });
-      }
-    }
-  }
-
-  if (model?.base === 'flux2') {
-    // A FLUX.2 model is a self-sufficient source when its config exposes the diffusers-style
-    // submodels. Plain Diffusers pipelines always do; an SDNQ pipeline qualifies only when it ships
-    // all of them — a truthy submodels dict is not enough, since a partial pipeline may expose only
-    // the transformer and the backend would then request missing fixed subfolders. Mirrors the
-    // generate-tab check so both tabs behave identically.
-    const mainIsPipeline =
-      model.format === 'diffusers' ||
-      ((model as { format?: unknown }).format === 'sdnq_quantized' && isSelfContainedSDNQPipeline(model));
-    // VAE is shared across variants, but the text encoder requires a variant-matching diffusers model.
-    if (!mainIsPipeline) {
-      if ('variant' in model && model.variant === 'dev') {
-        if (!params.flux2VaeModel && !hasFlux2DevDiffusersSource) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2DevVaeModelSelected') });
-        }
-        if (!params.flux2DevMistralEncoderModel && !hasFlux2DevDiffusersSource) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2DevMistralEncoderModelSelected') });
-        }
-      } else {
-        if (!params.flux2VaeModel && !hasFlux2DiffusersVaeSource) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2KleinVaeModelSelected') });
-        }
-        if (!params.kleinQwen3EncoderModel && !hasFlux2DiffusersQwen3Source) {
-          reasons.push({ content: i18n.t('parameters.invoke.noFlux2KleinQwen3EncoderModelSelected') });
-        }
-      }
-    }
-
-    const { bbox } = canvas;
-    // FLUX.2 uses the same 16px grid as FLUX.1. In PiD native mode the bbox is the 4x target, so it must snap to
-    // a larger grid (16 * 4) for bbox / 4 to land on the FLUX grid. getPidScale returns 1 for off/fit.
-    const gridSize = getGridSize('flux2', getPidScale(params.pidMode));
-
-    if (params.pidMode !== 'off') {
-      if (!params.pidDecoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noPidDecoderModelSelected') });
-      }
-      if (!params.gemma2EncoderModel) {
-        reasons.push({ content: i18n.t('parameters.invoke.noGemma2EncoderModelSelected') });
-      }
-      // PiD decodes at 4x the generation resolution; "Scale Before Processing" would inflate the generation
-      // size and blow up the decode. Require it to be off (None) so generation == bbox.
-      if (bbox.scaleMethod !== 'none') {
-        reasons.push({ content: i18n.t('parameters.invoke.pidScaleBeforeProcessingMustBeOff') });
-      }
-    }
-
-    if (bbox.scaleMethod === 'none') {
-      if (bbox.rect.width % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleBboxWidth', {
-            model: 'FLUX.2',
-            width: bbox.rect.width,
-            multiple: gridSize,
-          }),
-        });
-      }
-      if (bbox.rect.height % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleBboxHeight', {
-            model: 'FLUX.2',
-            height: bbox.rect.height,
-            multiple: gridSize,
-          }),
-        });
-      }
-    } else {
-      if (bbox.scaledSize.width % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleScaledBboxWidth', {
-            model: 'FLUX.2',
-            width: bbox.scaledSize.width,
-            multiple: gridSize,
-          }),
-        });
-      }
-      if (bbox.scaledSize.height % gridSize !== 0) {
-        reasons.push({
-          content: i18n.t('parameters.invoke.modelIncompatibleScaledBboxHeight', {
-            model: 'FLUX.2',
-            height: bbox.scaledSize.height,
-            multiple: gridSize,
-          }),
-        });
-      }
-    }
   }
 
   if (model?.base === 'sd-3' && params.pidMode !== 'off') {
@@ -1004,44 +728,6 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
       reasons.push({
         content: i18n.t('parameters.invoke.modelIncompatibleBboxHeight', {
           model: 'SD3',
-          height: canvas.bbox.rect.height,
-          multiple: gridSize,
-        }),
-      });
-    }
-  }
-
-  if (model?.base === 'sdxl' && params.pidMode !== 'off') {
-    // PiD decode on the Canvas: decoder + Gemma-2 encoder required, "Scale Before Processing" off, and not
-    // compatible with the SDXL Refiner.
-    if (!params.pidDecoderModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.noPidDecoderModelSelected') });
-    }
-    if (!params.gemma2EncoderModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.noGemma2EncoderModelSelected') });
-    }
-    if (params.refinerModel) {
-      reasons.push({ content: i18n.t('parameters.invoke.pidIncompatibleWithRefiner') });
-    }
-    if (canvas.bbox.scaleMethod !== 'none') {
-      reasons.push({ content: i18n.t('parameters.invoke.pidScaleBeforeProcessingMustBeOff') });
-    }
-    // Native mode generates at bbox/4, so the bbox must be a multiple of the PiD-scaled grid (grid*4) for
-    // bbox/4 to land on the SDXL grid; without this a 1040px bbox silently becomes a 256px generation.
-    const gridSize = getGridSize('sdxl', getPidScale(params.pidMode));
-    if (canvas.bbox.rect.width % gridSize !== 0) {
-      reasons.push({
-        content: i18n.t('parameters.invoke.modelIncompatibleBboxWidth', {
-          model: 'SDXL',
-          width: canvas.bbox.rect.width,
-          multiple: gridSize,
-        }),
-      });
-    }
-    if (canvas.bbox.rect.height % gridSize !== 0) {
-      reasons.push({
-        content: i18n.t('parameters.invoke.modelIncompatibleBboxHeight', {
-          model: 'SDXL',
           height: canvas.bbox.rect.height,
           multiple: gridSize,
         }),
@@ -1388,15 +1074,6 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
   }
 
   const enabledControlLayers = canvas.controlLayers.entities.filter((controlLayer) => controlLayer.isEnabled);
-
-  // FLUX only supports 1x Control LoRA at a time.
-  const controlLoRACount = enabledControlLayers.filter(
-    (controlLayer) => controlLayer.controlAdapter?.model?.type === 'control_lora'
-  ).length;
-
-  if (model?.base === 'flux' && controlLoRACount > 1) {
-    reasons.push({ content: i18n.t('parameters.invoke.fluxModelMultipleControlLoRAs') });
-  }
 
   enabledControlLayers.forEach((controlLayer, i) => {
     const layerLiteral = i18n.t('controlLayers.layer_one');
