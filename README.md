@@ -56,20 +56,20 @@ Invoke offers a fully featured workflow management solution, enabling users to c
 Invoke features an organized gallery system for easily storing, accessing, and remixing your content in the Invoke workspace. Images can be dragged/dropped onto any Image-base UI element in the application, and rich metadata within the Image allows for easy recall of key prompts or settings used in your workflow.
 
 ### Model Support
-- SD 1.5
-- SD 2.0
 - Z-Image Turbo
 - Z-Image Base
 - Krea 2 Turbo
 - Krea 2 Raw
 - Anima
 - Qwen Image
+- Qwen Image 2.1
 - Qwen Image Edit
 - Ideogram 4
 - ERNIE-Image
 - ERNIE-Image-Turbo
+- Wan 2.2 (5B / 12B)
 
-> **Note:** SDXL, FLUX.1, FLUX.2, SD3.5, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
+> **Note:** SD1.x, SD2.x, SDXL, FLUX.1, FLUX.2, SD3.5, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
 
 ### Platform Support
 - Python 3.14 / 3.15 preview
