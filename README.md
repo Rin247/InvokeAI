@@ -1,12 +1,9 @@
 <div align="center">
 
-![project hero](https://github.com/invoke-ai/InvokeAI/assets/31807370/6e3728c7-e90e-4711-905c-3b55844ff5be)
 
 # Invoke - Professional Creative AI Tools for Visual Media
 
 [![discord badge]][discord link] [![latest release badge]][latest release link] [![github stars badge]][github stars link] [![github forks badge]][github forks link] [![CI checks on main badge]][CI checks on main link] [![latest commit to main badge]][latest commit to main link] [![github open issues badge]][github open issues link] [![github open prs badge]][github open prs link] [![translation status badge]][translation status link]
-
-[![Sponsor Invoke](https://img.shields.io/badge/Sponsor-Invoke-ea4aaa?logo=githubsponsors&logoColor=white)][sponsor link]
 
 </div>
 
@@ -18,26 +15,6 @@ Invoke is a leading creative engine built to empower professionals and enthusias
 - Generate, refine, iterate on images, and build workflows
 
 ![Highlighted Features - Canvas and Workflows](https://github.com/invoke-ai/InvokeAI/assets/31807370/708f7a82-084f-4860-bfbe-e2588c53548d)
-
-# Documentation
-
-| **Quick Links**                                                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Installation and Updates][installation docs] - [Documentation and Tutorials][docs home] - [Bug Reports][github issues] - [Contributing][contributing docs] |
-
-# Installation
-
-To get started with Invoke, [Download the Launcher](https://github.com/invoke-ai/launcher/releases/latest).
-
-## Troubleshooting, FAQ and Support
-
-Please review our [FAQ][faq] for solutions to common installation problems and other issues.
-
-For more help, please join our [Discord][discord link].
-
-## Features
-
-Full details on features can be found in [our documentation][features docs].
 
 ### Web Server & UI
 
@@ -61,9 +38,7 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 - Krea 2 Turbo
 - Krea 2 Raw
 - Anima
-- Qwen Image
 - Qwen Image 2.1
-- Qwen Image Edit
 - Ideogram 4
 - ERNIE-Image
 - ERNIE-Image-Turbo
@@ -72,9 +47,9 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 > **Note:** SD1.x, SD2.x, SDXL, FLUX.1, FLUX.2, SD3.5, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
 
 ### Platform Support
-- Python 3.14 / 3.15 preview
+- Python 3.14 / 3.15
 - CUDA 13.4
-- ROCm 7.14
+- ROCm 10
 - Intel XPU
 
 ### Other features
