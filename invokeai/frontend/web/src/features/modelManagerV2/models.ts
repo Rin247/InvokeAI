@@ -302,6 +302,7 @@ export const MODEL_VARIANT_TO_LONG_NAME: Record<AnyModelVariant, string> = {
   gigantic: 'CLIP G',
   generate: 'Qwen Image',
   edit: 'Qwen Image Edit',
+  qwen_image_2_1: 'Qwen Image 2.1',
   t2v_a14b: 'Wan 2.2 T2V A14B',
   i2v_a14b: 'Wan 2.2 I2V A14B',
   ti2v_5b: 'Wan 2.2 TI2V 5B',

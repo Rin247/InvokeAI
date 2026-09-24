@@ -6,14 +6,21 @@ so a regression like the transformers-5.x one (where `_checkpoint_conversion_map
 the user's first load.
 """
 
+import json
+
 import torch
 
 from invokeai.backend.model_manager.load.model_loaders.qwen_image import (
     _build_qwen_image_transformer_config,
     _dequantize_comfyui_fp8,
     _remap_qwen_vl_checkpoint_keys,
+    _split_qwen_image_2_1_mlp_weights,
     _strip_comfyui_prefix,
     _strip_quantization_metadata,
+)
+from invokeai.backend.model_manager.load.model_loaders.vae import (
+    _align_qwen_image_2_1_vae_weights,
+    _remap_qwen_image_2_1_vae_keys,
 )
 from tests.backend.model_manager.load.state_dicts.qwen_vl_encoder_comfyui_keys import (
     state_dict_keys as qwen_vl_keys,
@@ -76,7 +83,7 @@ class TestRemapQwenVlCheckpointKeys:
         """
         from transformers import Qwen2_5_VLForConditionalGeneration
 
-        monkeypatch.setattr(Qwen2_5_VLForConditionalGeneration, "_checkpoint_conversion_mapping", {})
+        monkeypatch.setattr(Qwen2_5_VLForConditionalGeneration, "_checkpoint_conversion_mapping", {}, raising=False)
 
         remapped = _remap_qwen_vl_checkpoint_keys(
             {
@@ -106,6 +113,22 @@ class TestStripQuantizationMetadata:
 
 
 class TestDequantizeComfyuiFp8:
+    def test_int8_convrot_is_unrotated(self):
+        # Comfy-kitchen's regular H4 has [-1] in its first row and last column.
+        h4 = torch.tensor([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]], dtype=torch.float32) / 2
+        h16 = torch.kron(h4, h4)
+        quantized = torch.arange(-16, 16, dtype=torch.int8).reshape(2, 16)
+        scale = torch.tensor([[0.25], [0.5]])
+        config = {"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": 16}
+        sd = {
+            "l.weight": quantized,
+            "l.weight_scale": scale,
+            "l.comfy_quant": torch.tensor(list(json.dumps(config).encode()), dtype=torch.uint8),
+        }
+
+        assert _dequantize_comfyui_fp8(sd, torch.float32) == 1
+        assert torch.allclose(sd["l.weight"], quantized.float().mul(scale) @ h16)
+
     def test_scalar_scale(self):
         sd = {
             "l.weight": torch.full((2, 2), 2.0),
@@ -144,6 +167,31 @@ class TestStripComfyuiPrefix:
     def test_no_prefix_is_a_noop(self):
         sd = {"transformer_blocks.0.x": torch.empty(1)}
         assert _strip_comfyui_prefix(sd) is sd
+
+
+def test_qwen_image_2_1_fused_mlp_is_split_in_gate_then_up_order():
+    sd = {"transformer_blocks.0.img_mlp.gate_up.weight": torch.arange(24).reshape(6, 4)}
+
+    _split_qwen_image_2_1_mlp_weights(sd)
+
+    assert set(sd) == {
+        "transformer_blocks.0.img_mlp.gate_layer.weight",
+        "transformer_blocks.0.img_mlp.proj.weight",
+    }
+    assert torch.equal(sd["transformer_blocks.0.img_mlp.gate_layer.weight"], torch.arange(12).reshape(3, 4))
+    assert torch.equal(sd["transformer_blocks.0.img_mlp.proj.weight"], torch.arange(12, 24).reshape(3, 4))
+
+
+def test_qwen_image_2_1_vae_remap_and_spatial_kernel_alignment():
+    sd = {"encoder.conv1.weight": torch.ones(2, 4, 1, 3, 3)}
+    sd = _remap_qwen_image_2_1_vae_keys(sd)
+    model = torch.nn.Module()
+    model.register_parameter("dummy", torch.nn.Parameter(torch.empty(0)))
+    model.state_dict = lambda: {"encoder.conv_in.weight": torch.empty(2, 4, 3, 3)}
+
+    _align_qwen_image_2_1_vae_weights(sd, model)
+
+    assert sd["encoder.conv_in.weight"].shape == (2, 4, 3, 3)
 
 
 class TestBuildQwenImageTransformerConfig:

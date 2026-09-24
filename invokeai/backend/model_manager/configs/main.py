@@ -81,6 +81,7 @@ class MainModelDefaultSettings(BaseModel):
         | WanVariantType
         | ZImageVariantType
         | Krea2VariantType
+        | QwenImageVariantType
         | None = None,
         name: str | None = None,
         path: str | None = None,
@@ -132,6 +133,8 @@ class MainModelDefaultSettings(BaseModel):
                     # Distilled models (Klein 4B, Klein 9B) use fewer steps
                     return cls(steps=4, cfg_scale=1.0, width=1024, height=1024)
             case BaseModelType.QwenImage:
+                if variant == QwenImageVariantType.V2_1:
+                    return cls(steps=40, cfg_scale=1.0, width=2048, height=2048)
                 return cls(steps=40, cfg_scale=4.0, width=1024, height=1024)
             case BaseModelType.Krea2:
                 # Krea-2-Raw (Base, undistilled) needs more steps and CFG; Turbo (distilled) uses 8
@@ -1639,6 +1642,7 @@ class Main_Diffusers_QwenImage_Config(Diffusers_Config_Base, Main_Config_Base, C
                 "QwenImagePlusPipeline",
                 "QwenImageEditPlusPipeline",
                 "QwenImagePipeline",
+                "QwenImage21Pipeline",
             },
         )
 
@@ -1661,6 +1665,8 @@ class Main_Diffusers_QwenImage_Config(Diffusers_Config_Base, Main_Config_Base, C
             with open(model_index) as f:
                 config = json.load(f)
             class_name = config.get("_class_name", "")
+            if class_name == "QwenImage21Pipeline":
+                return QwenImageVariantType.V2_1
             if "Edit" in class_name:
                 return QwenImageVariantType.Edit
         return QwenImageVariantType.Generate
@@ -1696,6 +1702,18 @@ def _has_qwen_image_keys(state_dict: dict[str | int, Any]) -> bool:
     return has_txt_in and has_txt_norm and has_img_in and not has_context_embedder
 
 
+def _has_qwen_image_2_1_keys(state_dict: dict[str | int, Any]) -> bool:
+    """Check for the Qwen Image 2.1 single-stream transformer layout."""
+    keys = {_strip_comfyui_key_prefix(k) for k in state_dict if isinstance(k, str)}
+    return {
+        "txt_in.text_norm.weight",
+        "txt_in.in_layer.weight",
+        "modulation.1.weight",
+        "img_in.weight",
+        "proj_out.weight",
+    }.issubset(keys)
+
+
 # Matches "edit" as a standalone token (delimited by start/end or any non-alphanumeric
 # separator), so `qwen_image_edit_2509` matches but `credited` / `edited` / `unedited` do not.
 _EDIT_TOKEN_RE = re.compile(r"(?:^|[^a-z0-9])edit(?:[^a-z0-9]|$)")
@@ -1708,6 +1726,8 @@ def _infer_qwen_image_variant(sd: dict[str | int, Any], path: Path) -> QwenImage
     `zero_cond_t` dual-modulation path. Falls back to a filename "edit" token check
     for converters that don't emit the marker.
     """
+    if _has_qwen_image_2_1_keys(sd):
+        return QwenImageVariantType.V2_1
     marker = "__index_timestep_zero__"
     if marker in sd or any(isinstance(k, str) and _strip_comfyui_key_prefix(k) == marker for k in sd):
         return QwenImageVariantType.Edit
@@ -1737,7 +1757,7 @@ class Main_Checkpoint_QwenImage_Config(Checkpoint_Config_Base, Main_Config_Base,
 
         sd = mod.load_state_dict()
 
-        if not _has_qwen_image_keys(sd):
+        if not (_has_qwen_image_keys(sd) or _has_qwen_image_2_1_keys(sd)):
             raise NotAMatchError("state dict does not look like a Qwen Image model")
 
         if _has_ggml_tensors(sd):
@@ -1763,7 +1783,7 @@ class Main_GGUF_QwenImage_Config(Checkpoint_Config_Base, Main_Config_Base, Confi
 
         sd = mod.load_state_dict()
 
-        if not _has_qwen_image_keys(sd):
+        if not (_has_qwen_image_keys(sd) or _has_qwen_image_2_1_keys(sd)):
             raise NotAMatchError("state dict does not look like a Qwen Image Edit model")
 
         if not _has_ggml_tensors(sd):

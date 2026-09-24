@@ -1,6 +1,7 @@
 # Copyright (c) 2024, Lincoln D. Stein and the InvokeAI Development Team
 """Class for VAE model loading in InvokeAI."""
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -22,11 +23,66 @@ from invokeai.backend.model_manager.taxonomy import (
     BaseModelType,
     ModelFormat,
     ModelType,
+    QwenImageVariantType,
     SubModelType,
 )
 from invokeai.backend.quantization.sdnq.detection import is_sdnq_folder
 from invokeai.backend.quantization.sdnq.loaders import raise_on_incomplete_sdnq_load, sdnq_sd_loader
 from invokeai.backend.util.state_dict_loading import load_state_dict_ignoring_extras
+
+
+def _remap_qwen_image_2_1_vae_keys(sd: dict) -> dict:
+    """Convert the Comfy-Org VAE's original module names to Diffusers names."""
+    mapped = {}
+    for key, value in sd.items():
+        new_key = key
+        if key.startswith("conv1."):
+            new_key = "quant_conv." + key[len("conv1.") :]
+        elif key.startswith("conv2."):
+            new_key = "post_quant_conv." + key[len("conv2.") :]
+        else:
+            new_key = new_key.replace("encoder.conv1.", "encoder.conv_in.")
+            new_key = new_key.replace("decoder.conv1.", "decoder.conv_in.")
+            new_key = new_key.replace(".head.0.", ".norm_out.").replace(".head.2.", ".conv_out.")
+            for index, target in ((0, "resnets.0"), (1, "attentions.0"), (2, "resnets.1")):
+                new_key = new_key.replace(f".middle.{index}.", f".mid_block.{target}.")
+            for side, source, target, resample_index, resample_name in (
+                ("encoder", "downsamples", "down_blocks", 2, "downsampler"),
+                ("decoder", "upsamples", "up_blocks", 3, "upsampler"),
+            ):
+                match = re.match(rf"^{side}\.{source}\.(\d+)\.{source}\.(\d+)\.(.*)$", new_key)
+                if match:
+                    block, layer, rest = match.groups()
+                    submodule = resample_name if int(layer) == resample_index else f"resnets.{layer}"
+                    new_key = f"{side}.{target}.{block}.{submodule}.{rest}"
+                    break
+            for index, target in ((0, "norm1"), (2, "conv1"), (3, "norm2"), (6, "conv2")):
+                new_key = new_key.replace(f".residual.{index}.", f".{target}.")
+            new_key = new_key.replace(".shortcut.", ".conv_shortcut.")
+        if new_key in mapped:
+            raise ValueError(f"Duplicate Qwen Image 2.1 VAE key after conversion: {new_key}")
+        mapped[new_key] = value
+    return mapped
+
+
+def _align_qwen_image_2_1_vae_weights(sd: dict, model: AnyModel) -> None:
+    """Comfy-Org stores spatial Conv2d kernels with an extra singleton time axis."""
+    target = model.state_dict()
+    missing = set(target) - set(sd)
+    unexpected = set(sd) - set(target)
+    if missing or unexpected:
+        raise ValueError(
+            f"Qwen Image 2.1 VAE keys do not match Diffusers: missing={sorted(missing)[:5]}, "
+            f"unexpected={sorted(unexpected)[:5]}"
+        )
+    for key, weight in sd.items():
+        expected = target[key].shape
+        if weight.shape == expected:
+            continue
+        if weight.ndim == 5 and weight.shape[2] == 1 and weight.shape[:2] + weight.shape[3:] == expected:
+            sd[key] = weight.squeeze(2)
+        else:
+            raise ValueError(f"Qwen Image 2.1 VAE {key} has shape {tuple(weight.shape)}, expected {tuple(expected)}")
 
 
 def _is_sdnq_vae_folder(path: Path) -> bool:
@@ -287,21 +343,30 @@ class VAELoader(GenericDiffusersLoader):
         load the state dict directly.
         """
         import accelerate
+        import torch
+        from diffusers import AutoencoderKLQwenImage21
         from diffusers.models.autoencoders.autoencoder_kl_qwenimage import AutoencoderKLQwenImage
         from safetensors.torch import load_file
 
         sd = load_file(config.path)
+        if config.variant == QwenImageVariantType.V2_1 and "encoder.conv1.weight" in sd:
+            sd = _remap_qwen_image_2_1_vae_keys(sd)
 
-        if self._torch_dtype is not None:
+        vae_dtype = torch.bfloat16 if config.variant == QwenImageVariantType.V2_1 else self._torch_dtype
+        if vae_dtype is not None:
             for k in list(sd.keys()):
                 if sd[k].is_floating_point():
-                    sd[k] = sd[k].to(self._torch_dtype)
+                    sd[k] = sd[k].to(vae_dtype)
 
         new_sd_size = sum(t.nelement() * t.element_size() for t in sd.values())
         self._ram_cache.make_room(new_sd_size)
 
         with accelerate.init_empty_weights():
-            model = AutoencoderKLQwenImage()
+            model = (
+                AutoencoderKLQwenImage21() if config.variant == QwenImageVariantType.V2_1 else AutoencoderKLQwenImage()
+            )
+        if config.variant == QwenImageVariantType.V2_1:
+            _align_qwen_image_2_1_vae_weights(sd, model)
 
         load_state_dict_ignoring_extras(model, sd, source="Qwen-Image VAE checkpoint", assign=True)
         model.eval()

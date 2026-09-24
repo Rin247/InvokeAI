@@ -15,7 +15,13 @@ from invokeai.app.invocations.model import (
     VAEField,
 )
 from invokeai.app.services.shared.invocation_context import InvocationContext
-from invokeai.backend.model_manager.taxonomy import BaseModelType, ModelFormat, ModelType, SubModelType
+from invokeai.backend.model_manager.taxonomy import (
+    BaseModelType,
+    ModelFormat,
+    ModelType,
+    QwenImageVariantType,
+    SubModelType,
+)
 
 
 @invocation_output("qwen_image_model_loader_output")
@@ -95,6 +101,7 @@ class QwenImageModelLoaderInvocation(BaseInvocation):
     def invoke(self, context: InvocationContext) -> QwenImageModelLoaderOutput:
         main_config = context.models.get_config(self.model)
         main_is_diffusers = main_config.format == ModelFormat.Diffusers
+        is_qwen_image_2_1 = getattr(main_config, "variant", None) == QwenImageVariantType.V2_1
 
         # Transformer always comes from the main model
         transformer = self.model.model_copy(update={"submodel_type": SubModelType.Transformer})
@@ -113,6 +120,11 @@ class QwenImageModelLoaderInvocation(BaseInvocation):
                 "or set 'Component Source' to a Diffusers Qwen Image model."
             )
 
+        vae_config = context.models.get_config(vae)
+        vae_is_2_1 = getattr(vae_config, "variant", None) == QwenImageVariantType.V2_1
+        if is_qwen_image_2_1 != vae_is_2_1:
+            raise ValueError("Qwen Image 2.1 requires its 64-channel Qwen Image 2.1 VAE")
+
         # Resolve Qwen VL encoder: standalone override > main (if Diffusers) > component source
         if self.qwen_vl_encoder_model is not None:
             tokenizer = self.qwen_vl_encoder_model.model_copy(update={"submodel_type": SubModelType.Tokenizer})
@@ -130,6 +142,14 @@ class QwenImageModelLoaderInvocation(BaseInvocation):
                 "Either set 'Qwen VL Encoder' to a standalone Qwen2.5-VL encoder, "
                 "or set 'Component Source' to a Diffusers Qwen Image model."
             )
+
+        encoder_config = context.models.get_config(text_encoder)
+        encoder_is_2_1 = (
+            getattr(encoder_config, "variant", None) == QwenImageVariantType.V2_1
+            or getattr(encoder_config, "architecture", None) == "qwen3_vl"
+        )
+        if is_qwen_image_2_1 != encoder_is_2_1:
+            raise ValueError("Qwen Image 2.1 requires the Qwen3-VL-8B encoder; older Qwen Image uses Qwen2.5-VL")
 
         return QwenImageModelLoaderOutput(
             transformer=TransformerField(transformer=transformer, loras=[]),

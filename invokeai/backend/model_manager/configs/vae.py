@@ -23,6 +23,7 @@ from invokeai.backend.model_manager.taxonomy import (
     BaseModelType,
     ModelFormat,
     ModelType,
+    QwenImageVariantType,
 )
 
 REGEX_TO_BASE: dict[str, BaseModelType] = {
@@ -55,6 +56,22 @@ def _is_qwen_image_vae(state_dict: dict[str | int, Any]) -> bool:
         return False
     # z_dim is the input channel dim of decoder.conv_in
     return shape[1] == 16
+
+
+def _is_qwen_image_2_1_vae(state_dict: dict[str | int, Any]) -> bool:
+    """Check for the native Qwen Image 2.1 64-channel RGBA VAE layout."""
+    required = {
+        "encoder.conv1.weight",
+        "decoder.conv1.weight",
+        "decoder.head.2.weight",
+        "conv1.weight",
+        "conv2.weight",
+    }
+    if not required.issubset(state_dict):
+        return False
+    decoder_shape = getattr(state_dict["decoder.conv1.weight"], "shape", ())
+    output_shape = getattr(state_dict["decoder.head.2.weight"], "shape", ())
+    return len(decoder_shape) == 5 and decoder_shape[1] == 64 and output_shape[0] == 4
 
 
 def _wan_vae_z_dim(state_dict: dict[str | int, Any]) -> int | None:
@@ -149,7 +166,11 @@ class VAE_Checkpoint_Config_Base(Checkpoint_Config_Base):
 
         # Exclude Qwen Image / Wan VAEs - they share the AutoencoderKLWan
         # architecture and each has its own config class.
-        if _is_qwen_image_vae(state_dict) or _wan_vae_z_dim(state_dict) is not None:
+        if (
+            _is_qwen_image_vae(state_dict)
+            or _is_qwen_image_2_1_vae(state_dict)
+            or _wan_vae_z_dim(state_dict) is not None
+        ):
             raise NotAMatchError("model is a Wan-family VAE, not a standard VAE")
 
     @classmethod
@@ -240,6 +261,7 @@ class VAE_Checkpoint_QwenImage_Config(Checkpoint_Config_Base, Config_Base):
     type: Literal[ModelType.VAE] = Field(default=ModelType.VAE)
     format: Literal[ModelFormat.Checkpoint] = Field(default=ModelFormat.Checkpoint)
     base: Literal[BaseModelType.QwenImage] = Field(default=BaseModelType.QwenImage)
+    variant: QwenImageVariantType | None = Field(default=None)
     cpu_only: bool | None = Field(default=None, description="Whether this model should run on CPU only")
 
     @classmethod
@@ -249,16 +271,18 @@ class VAE_Checkpoint_QwenImage_Config(Checkpoint_Config_Base, Config_Base):
         raise_for_override_fields(cls, override_fields)
 
         state_dict = mod.load_state_dict()
-        if not _is_qwen_image_vae(state_dict):
+        is_2_1 = _is_qwen_image_2_1_vae(state_dict)
+        if not (_is_qwen_image_vae(state_dict) or is_2_1):
             raise NotAMatchError("state dict does not look like a Qwen Image VAE")
 
         # Defer to VAE_Checkpoint_Wan_Config for files whose names indicate Wan
         # (both architectures are 16-channel AutoencoderKLWan and otherwise
         # indistinguishable from the state dict alone).
-        if _filename_suggests_wan(mod):
+        if not is_2_1 and _filename_suggests_wan(mod):
             raise NotAMatchError("filename suggests a Wan VAE, not Qwen Image")
 
-        return cls(**override_fields)
+        variant = override_fields.pop("variant", None) or (QwenImageVariantType.V2_1 if is_2_1 else None)
+        return cls(**override_fields, variant=variant)
 
 
 class VAE_Checkpoint_Wan_Config(Checkpoint_Config_Base, Config_Base):

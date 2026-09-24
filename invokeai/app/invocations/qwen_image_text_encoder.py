@@ -21,6 +21,7 @@ from invokeai.app.invocations.primitives import QwenImageConditioningOutput
 from invokeai.app.services.shared.invocation_context import InvocationContext
 from invokeai.backend.model_manager.load.model_cache.model_cache import MB, MODEL_LOAD_LOCK
 from invokeai.backend.model_manager.load.model_util import calc_model_size_by_fs
+from invokeai.backend.model_manager.taxonomy import QwenImageVariantType
 from invokeai.backend.stable_diffusion.diffusion.conditioning_data import (
     ConditioningFieldData,
     QwenImageConditioningInfo,
@@ -140,7 +141,9 @@ class QwenImageTextEncoderInvocation(BaseInvocation):
     )
 
     @staticmethod
-    def _resize_for_vl_encoder(image: PILImage.Image, target_pixels: int = 512 * 512) -> PILImage.Image:
+    def _resize_for_vl_encoder(
+        image: PILImage.Image, target_pixels: int = 512 * 512, round_to_nearest: bool = False
+    ) -> PILImage.Image:
         """Resize image to fit within target_pixels while preserving aspect ratio.
 
         Matches the diffusers pipeline's calculate_dimensions logic: the image is resized
@@ -154,30 +157,130 @@ class QwenImageTextEncoderInvocation(BaseInvocation):
         new_w = int((target_pixels * aspect) ** 0.5)
         new_h = int(target_pixels / new_w)
         # Round to multiples of 32
-        new_w = max(32, (new_w // 32) * 32)
-        new_h = max(32, (new_h // 32) * 32)
+        if round_to_nearest:
+            new_w = max(32, round(new_w / 32) * 32)
+            new_h = max(32, round(new_h / 32) * 32)
+        else:
+            new_w = max(32, (new_w // 32) * 32)
+            new_h = max(32, (new_h // 32) * 32)
         if new_w != w or new_h != h:
             image = image.resize((new_w, new_h), resample=PILImage.LANCZOS)
         return image
 
     @torch.no_grad()
     def invoke(self, context: InvocationContext) -> QwenImageConditioningOutput:
-        # Load and resize reference images to ~1M pixels (matching diffusers pipeline)
+        is_qwen_image_2_1 = self._is_qwen_image_2_1(context)
+        target_pixels = 1024 * 1024 if is_qwen_image_2_1 else 512 * 512
         pil_images: list[PILImage.Image] = []
         for img_field in self.reference_images:
             pil_img = context.images.get_pil(img_field.image_name)
-            pil_img = self._resize_for_vl_encoder(pil_img.convert("RGB"))
+            # Qwen Image 2.1's VLM sees alpha composited over white, while its VAE
+            # receives the original RGBA image in the graph's i2l branch.
+            if is_qwen_image_2_1 and pil_img.mode == "RGBA":
+                white = PILImage.new("RGB", pil_img.size, (255, 255, 255))
+                white.paste(pil_img, mask=pil_img.getchannel("A"))
+                pil_img = white
+            pil_img = self._resize_for_vl_encoder(
+                pil_img.convert("RGB"), target_pixels=target_pixels, round_to_nearest=is_qwen_image_2_1
+            )
             pil_images.append(pil_img)
 
-        prompt_embeds, prompt_mask = self._encode(context, pil_images)
+        if is_qwen_image_2_1:
+            prompt_embeds, prompt_mask, image_pad_mask = self._encode_qwen3(context, pil_images)
+        else:
+            prompt_embeds, prompt_mask = self._encode(context, pil_images)
+            image_pad_mask = None
         prompt_embeds = prompt_embeds.detach().to("cpu")
         prompt_mask = prompt_mask.detach().to("cpu") if prompt_mask is not None else None
+        image_pad_mask = image_pad_mask.detach().to("cpu") if image_pad_mask is not None else None
 
         conditioning_data = ConditioningFieldData(
-            conditionings=[QwenImageConditioningInfo(prompt_embeds=prompt_embeds, prompt_embeds_mask=prompt_mask)]
+            conditionings=[
+                QwenImageConditioningInfo(
+                    prompt_embeds=prompt_embeds,
+                    prompt_embeds_mask=prompt_mask,
+                    image_pad_mask=image_pad_mask,
+                )
+            ]
         )
         conditioning_name = context.conditioning.save(conditioning_data)
         return QwenImageConditioningOutput.build(conditioning_name)
+
+    def _is_qwen_image_2_1(self, context: InvocationContext) -> bool:
+        config = context.models.get_config(self.qwen_vl_encoder.text_encoder)
+        return (
+            getattr(config, "variant", None) == QwenImageVariantType.V2_1
+            or getattr(config, "architecture", None) == "qwen3_vl"
+        )
+
+    def _encode_qwen3(
+        self, context: InvocationContext, images: list[PILImage.Image]
+    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor]:
+        """Encode the Qwen Image 2.1 training template with Qwen3-VL."""
+        processor_info = context.models.load(self.qwen_vl_encoder.tokenizer)
+        processor = processor_info.model
+
+        sys_prompt = "Comprehend and analyze the provided prompt."
+        if images:
+            markers = " ".join(
+                f"<image{i}><|vision_start|><|image_pad|><|vision_end|>" for i in range(1, len(images) + 1)
+            )
+            text = (
+                f"<|im_start|>system\n{sys_prompt}<|im_end|>\n"
+                f"<|im_start|>user\n{markers}{self.prompt or ' '}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+            )
+        else:
+            text = (
+                f"<|im_start|>system\n{sys_prompt}<|im_end|>\n"
+                f"<|im_start|>user\n{self.prompt or ' '}<|im_end|>\n"
+                "<|im_start|>assistant\n"
+            )
+
+        sys_message = [{"role": "system", "content": [{"type": "text", "text": sys_prompt}]}]
+        drop_idx = len(processor.apply_chat_template(sys_message, tokenize=True, return_dict=False)[0])
+        img_token_id = processor.tokenizer.encode("<|image_pad|>")[0]
+
+        context.util.signal_progress("Running Qwen3-VL text/vision encoder")
+        text_encoder, device, cleanup = self._load_cached_encoder(context)
+        try:
+            model_inputs = processor(
+                text=[text],
+                images=images or None,
+                padding=True,
+                padding_side="left",
+                return_tensors="pt",
+            ).to(device=device)
+            forward_kwargs = {
+                "input_ids": model_inputs.input_ids,
+                "attention_mask": model_inputs.attention_mask,
+                "output_hidden_states": True,
+            }
+            for name in ("pixel_values", "image_grid_thw", "mm_token_type_ids"):
+                if hasattr(model_inputs, name):
+                    forward_kwargs[name] = getattr(model_inputs, name)
+
+            text_model = getattr(text_encoder.model, "language_model", text_encoder.model)
+            handle = text_model.norm.register_forward_hook(lambda module, args, output: args[0])
+            try:
+                # Qwen Image conditions on hidden states, not next-token logits. Calling
+                # the base model skips the unused (and very large) lm_head projection.
+                outputs = text_encoder.model(**forward_kwargs)
+            finally:
+                handle.remove()
+            hidden_states = outputs.hidden_states[-1]
+
+            valid = model_inputs.attention_mask.bool()
+            selected_hidden = hidden_states[valid][drop_idx:]
+            selected_ids = model_inputs.input_ids[valid][drop_idx:]
+            prompt_embeds = selected_hidden.unsqueeze(0).to(dtype=torch.bfloat16)
+            prompt_mask = torch.ones(prompt_embeds.shape[:2], dtype=torch.long, device=device)
+            image_pad_mask = (selected_ids == img_token_id).unsqueeze(0)
+        finally:
+            del text_encoder
+            cleanup()
+
+        return prompt_embeds, None if prompt_mask.all() else prompt_mask, image_pad_mask
 
     def _encode(
         self, context: InvocationContext, images: list[PILImage.Image]
@@ -336,7 +439,7 @@ class QwenImageTextEncoderInvocation(BaseInvocation):
 
     def _load_cached_encoder(self, context: InvocationContext) -> _LoadedEncoder:
         """Load the text encoder through the model cache (no quantization). The cache stays the model's owner."""
-        from transformers import Qwen2_5_VLForConditionalGeneration
+        from transformers import Qwen2_5_VLForConditionalGeneration, Qwen3VLForConditionalGeneration
 
         text_encoder_info = context.models.load(self.qwen_vl_encoder.text_encoder)
         ctx = text_encoder_info.model_on_device()
@@ -344,7 +447,7 @@ class QwenImageTextEncoderInvocation(BaseInvocation):
         # Use the encoder's intended compute device, not its current parameter residency: partial loading may have
         # temporarily offloaded all weights to RAM, which would wrongly run the whole encode on the CPU.
         device = text_encoder_info.compute_device
-        assert isinstance(text_encoder, Qwen2_5_VLForConditionalGeneration)
+        assert isinstance(text_encoder, (Qwen2_5_VLForConditionalGeneration, Qwen3VLForConditionalGeneration))
 
         def release() -> None:
             ctx.__exit__(None, None, None)

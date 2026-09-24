@@ -13,6 +13,7 @@ from invokeai.app.invocations.qwen_image_latents_to_image import QwenImageLatent
 from invokeai.backend.krea2.vae_compat import (
     QWEN_IMAGE_VAE_DEFAULT_TILE_SIZE,
     patch_qwen_image_vae_tiling,
+    qwen_image_2_1_tile_size,
 )
 from invokeai.backend.util.vae_working_memory import estimate_vae_working_memory_qwen_image
 
@@ -120,6 +121,13 @@ class TestQwenImageWorkingMemoryEstimate:
         assert large < small * 2
         # 512px tiles cover 4x the area of 256px tiles; the tile term must follow.
         assert big_tile - small == pytest.approx((512**2 - 256**2) * 2 * 2900 * 1.25, rel=1e-6)
+
+
+def test_qwen_image_2_1_auto_tiles_when_full_decode_crowds_vram():
+    vram = 8 * 1024**3
+    assert qwen_image_2_1_tile_size(0, False, 5 * 1024**3, vram) == 256
+    assert qwen_image_2_1_tile_size(0, False, 1 * 1024**3, vram) is None
+    assert qwen_image_2_1_tile_size(300, True, 0, None) == 320
 
 
 class TestQwenImageWorkingMemory:

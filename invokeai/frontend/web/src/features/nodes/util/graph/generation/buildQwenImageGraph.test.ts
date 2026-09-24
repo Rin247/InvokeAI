@@ -159,6 +159,10 @@ describe('isQwenImageEditModel', () => {
     expect(isQwenImageEditModel({ variant: 'edit' })).toBe(true);
   });
 
+  it('returns true for the unified Qwen Image 2.1 variant', () => {
+    expect(isQwenImageEditModel({ variant: 'qwen_image_2_1' })).toBe(true);
+  });
+
   it('returns false for generate variant', () => {
     expect(isQwenImageEditModel({ variant: 'generate' })).toBe(false);
   });
@@ -322,6 +326,44 @@ describe('buildQwenImageGraph', () => {
   afterEach(() => {
     nextId = 0;
     params = { ...defaultParams };
+  });
+
+  it('encodes every Qwen Image 2.1 reference in order for both text and latent conditioning', async () => {
+    const { selectMainModelConfig } = await import('features/controlLayers/store/paramsSlice');
+    const { fetchModelConfigWithTypeGuard } = await import('features/metadata/util/modelFetchingHelpers');
+    const { selectRefImagesSlice } = await import('features/controlLayers/store/refImagesSlice');
+    const model21 = { ...model, variant: 'qwen_image_2_1' };
+    vi.mocked(selectMainModelConfig).mockReturnValue(model21 as never);
+    vi.mocked(fetchModelConfigWithTypeGuard).mockResolvedValue(model21 as never);
+    vi.mocked(selectRefImagesSlice).mockReturnValue({
+      entities: ['ref1.png', 'ref2.png'].map((name) => ({
+        id: name,
+        isEnabled: true,
+        config: {
+          type: 'qwen_image_reference_image',
+          image: { original: { image: { image_name: name, width: 512, height: 512 } } },
+        },
+      })),
+    } as never);
+
+    try {
+      const { g } = await buildQwenImageGraph({
+        generationMode: 'txt2img',
+        manager: null,
+        state: { system: { shouldUseNSFWChecker: false, shouldUseWatermarker: false } } as never,
+      });
+      const graph = g.getGraph();
+      const nodeIds = Object.keys(graph.nodes);
+      expect(nodeIds.filter((id) => id.startsWith('qwen_ref_i2l:'))).toHaveLength(2);
+      expect(nodeIds.filter((id) => id.startsWith('qwen_ref_latents_collect:'))).toHaveLength(2);
+      expect(graph.edges.some((edge) => edge.destination.field === 'reference_latents_2_1')).toBe(true);
+      expect(graph.edges.some((edge) => edge.destination.field === 'reference_latents')).toBe(false);
+      expect(graph.edges.filter((edge) => edge.destination.field === 'reference_images')).toHaveLength(2);
+    } finally {
+      vi.mocked(selectMainModelConfig).mockReturnValue(model as never);
+      vi.mocked(fetchModelConfigWithTypeGuard).mockResolvedValue(model as never);
+      vi.mocked(selectRefImagesSlice).mockReturnValue(refImagesSlice as never);
+    }
   });
 
   it('uses chained collectors to preserve reference image ordering for edit-variant models', async () => {

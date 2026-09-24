@@ -37,7 +37,8 @@ dependencies = [
   "accelerate",
   "bitsandbytes; sys_platform!='darwin'",
   "compel>=2.4.0,<3",
-  "diffusers[torch]==0.40.0",
+  # Qwen-Image 2.1 landed after diffusers 0.40. Pin the merge commit until 0.41 is released.
+  "diffusers[torch] @ git+https://github.com/huggingface/diffusers.git@6256aa7",
   "gguf",
   "mediapipe>=0.10.30",                   # needed for "mediapipeface" controlnet model
   "mistral-common>=1.5.4,<2",             # canonical Tekken tokenizer for FLUX.2 [dev] Mistral encoder; the
@@ -65,7 +66,7 @@ dependencies = [
   "torch>=2.14.0,<2.15.0; sys_platform == 'darwin'",
   "torchsde",                             # diffusers needs this for SDE solvers, but it is not an explicit dep of diffusers
   "torchvision",
-  "transformers>=5.5,<5.6",
+  "transformers>=5.17,<5.18",
 
   # Core application dependencies, pinned for reproducible builds.
   "fastapi-events",
@@ -108,6 +109,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+"qwen-int8" = [
+  "comfy-kitchen==0.2.35; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 "xformers" = [
   # Core generation dependencies, pinned for reproducible builds.
   "xformers>=0.0.28.post1; sys_platform!='darwin'",
