@@ -42,7 +42,7 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 
 ### Platform Support
 - Windows 11+ / Linux via AppImage
-- Python 3.14 / 3.15
+- Python 3.13 (local dev), 3.14 / 3.15 (WIP)
 - CUDA 13.4
 - ROCm 10
 - Intel XPU

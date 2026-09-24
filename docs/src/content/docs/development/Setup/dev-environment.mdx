@@ -33,16 +33,7 @@ import SystemRequirementsLink from '@components/SystemRequirmentsLink.astro'
 
       Next, clone your fork to your local machine. You can use either HTTPS or SSH, depending on your git configuration.
 
-   3. This repository uses Git LFS to manage large files. To ensure all assets are downloaded:
-        - Install git-lfs -> [Download here](https://git-lfs.com/)
-        - Enable automatic LFS fetching for this repository:
-          ```shell
-          git config lfs.fetchinclude "*"
-          ```
-        - Fetch files from LFS (only needs to be done once; subsequent `git pull` will fetch changes automatically):
-          ```shell
-          git lfs pull
-          ```
+   3. Git LFS is not installed in this development environment, and the pre-push LFS hook has been removed. If you need LFS assets, install git-lfs manually and run `git lfs pull` after cloning.
 
        :::warning[Remote push policy]
          Some clones of this repo carry additional remotes such as `upstream` or `krakotay`.
@@ -61,7 +52,7 @@ import SystemRequirementsLink from '@components/SystemRequirmentsLink.astro'
 
         ```sh
         uv sync --frozen \
-          --python 3.12 \
+          --python 3.13 \
           --managed-python \
           --extra dev \
           --extra test \
@@ -69,6 +60,10 @@ import SystemRequirementsLink from '@components/SystemRequirmentsLink.astro'
           --extra cuda \
           --extra xformers
         ```
+
+       :::note[Python versions]
+         Python 3.13 is the current working local development target. Python 3.14 and 3.15 are planned but currently WIP due to missing dependency wheels.
+       :::
 
       :::note[Linux ARM64 / aarch64]
         On Linux ARM64 devices (e.g. Raspberry Pi 5), use `--extra cpu` and omit `--extra xformers`. torch and torchvision are installed from PyPI (CPU-only wheels) — CUDA and ROCm acceleration are not available on this platform.
