@@ -138,9 +138,13 @@ dependencies = [
   "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
   "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
-# Note: ROCm extra is temporarily removed because torch 2.14.0+rocm10.0
-# does not exist on PyTorch's WHL index. Re-add when a valid ROCm wheel
-# is available or when the project upgrades torch past 2.14.0.
+"rocm" = [
+  "torch==2.14.0+rocm10.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
+  "torchvision==0.29.0+rocm10.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
+  "triton-rocm==3.8.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
+  "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
 # Intel XPU (Arc / Battlemage) wheels are published only for linux-x86_64 and
 # windows-amd64 on PyTorch's WHL index. Gate the +xpu pins to those platforms; the
 # Intel oneAPI runtime libs (intel-sycl-rt, etc.) come in automatically as deps of
