@@ -41,6 +41,7 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 > **Note:** SD1.x, SD2.x, SDXL, FLUX.1, FLUX.2, SD3.5, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
 
 ### Platform Support
+- Windows 11+ / Linux via AppImage
 - Python 3.14 / 3.15
 - CUDA 13.4
 - ROCm 10
