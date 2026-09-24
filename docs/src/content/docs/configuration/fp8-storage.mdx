@@ -31,7 +31,7 @@ The toggle works as advertised: the UNet / transformer drops by roughly 50% on t
 
 ### RTX 40-series, RTX 50-series, and Hopper — VRAM win today, compute win possible later
 
-These GPUs have native FP8 tensor cores. The toggle still buys you the same ~50% VRAM reduction today, because the forward pass still runs in BF16 — the hook casts weights back up to compute precision before each layer. If InvokeAI later wires up a true FP8 matmul path (e.g. via `torchao`), the same toggle will *also* unlock compute speedups on this hardware. Until then, treat the benefit as "VRAM only, same as Ampere".
+These GPUs have native FP8 tensor cores. The toggle still buys you the same ~50% VRAM reduction today, because the forward pass still runs in BF16 — the hook casts weights back up to compute precision before each layer. If InvokeAI later wires up a true FP8 matmul path (see [TorchAO Quantization](/configuration/torchao-quantization/)), the same toggle will *also* unlock compute speedups on this hardware. Until then, treat the benefit as "VRAM only, same as Ampere".
 
 ### Older CUDA cards — still a VRAM win
 

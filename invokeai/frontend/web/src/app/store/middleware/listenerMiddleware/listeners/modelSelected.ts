@@ -281,7 +281,7 @@ export const addModelSelectedListener = (startAppListening: AppStartListening) =
           }
         }
 
-        // handle incompatible Qwen Image Edit component source - clear if switching away
+        // handle incompatible Qwen Image component source - clear if switching away
         const { qwenImageComponentSource, qwenImageVaeModel, qwenImageQwenVLEncoderModel } = state.params;
         if (newBase !== 'qwen-image') {
           if (qwenImageComponentSource) {
@@ -493,7 +493,7 @@ export const addModelSelectedListener = (startAppListening: AppStartListening) =
             }
 
             if (newBase === 'qwen-image') {
-              // Switching TO Qwen Image Edit - convert any non-qwen configs to qwen_image_reference_image
+              // Switching TO Qwen Image - convert any non-qwen configs to qwen_image_reference_image
               if (!isQwenImageReferenceImageConfig(entity.config)) {
                 dispatch(
                   refImageConfigChanged({
@@ -547,7 +547,7 @@ export const addModelSelectedListener = (startAppListening: AppStartListening) =
             }
 
             if (isQwenImageReferenceImageConfig(entity.config)) {
-              // Switching AWAY from Qwen Image Edit - convert to the appropriate config type
+              // Switching AWAY from Qwen Image - convert to the appropriate config type
               let newConfig;
               if (newGlobalRefImageModel) {
                 const parsedModel = zModelIdentifierField.parse(newGlobalRefImageModel);

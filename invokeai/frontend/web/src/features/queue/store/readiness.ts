@@ -802,7 +802,7 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
       if (bbox.rect.width % gridSize !== 0) {
         reasons.push({
           content: i18n.t('parameters.invoke.modelIncompatibleBboxWidth', {
-            model: 'Qwen Image Edit',
+            model: 'Qwen Image',
             width: bbox.rect.width,
             multiple: gridSize,
           }),
@@ -811,7 +811,7 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
       if (bbox.rect.height % gridSize !== 0) {
         reasons.push({
           content: i18n.t('parameters.invoke.modelIncompatibleBboxHeight', {
-            model: 'Qwen Image Edit',
+            model: 'Qwen Image',
             height: bbox.rect.height,
             multiple: gridSize,
           }),
@@ -821,7 +821,7 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
       if (bbox.scaledSize.width % gridSize !== 0) {
         reasons.push({
           content: i18n.t('parameters.invoke.modelIncompatibleScaledBboxWidth', {
-            model: 'Qwen Image Edit',
+            model: 'Qwen Image',
             width: bbox.scaledSize.width,
             multiple: gridSize,
           }),
@@ -830,7 +830,7 @@ export const getReasonsWhyCannotEnqueueCanvasTab = (arg: {
       if (bbox.scaledSize.height % gridSize !== 0) {
         reasons.push({
           content: i18n.t('parameters.invoke.modelIncompatibleScaledBboxHeight', {
-            model: 'Qwen Image Edit',
+            model: 'Qwen Image',
             height: bbox.scaledSize.height,
             multiple: gridSize,
           }),

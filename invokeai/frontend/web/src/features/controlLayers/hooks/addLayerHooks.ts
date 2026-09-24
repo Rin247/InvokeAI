@@ -100,7 +100,7 @@ export const getDefaultRefImageConfig = (
     return deepClone(initialFlux2ReferenceImage);
   }
 
-  // Qwen Image Edit has built-in reference image support - no model needed
+  // Qwen Image has built-in reference image support - no model needed
   if (base === 'qwen-image') {
     return deepClone(initialQwenImageReferenceImage);
   }

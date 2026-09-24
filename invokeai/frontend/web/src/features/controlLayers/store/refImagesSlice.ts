@@ -146,7 +146,7 @@ const slice = createSlice({
         return;
       }
 
-      // FLUX.2, Qwen Image Edit and Wan reference images don't have a model field - they use built-in support
+      // FLUX.2, Qwen Image and Wan reference images don't have a model field - they use built-in support
       if (
         isFlux2ReferenceImageConfig(entity.config) ||
         isQwenImageReferenceImageConfig(entity.config) ||

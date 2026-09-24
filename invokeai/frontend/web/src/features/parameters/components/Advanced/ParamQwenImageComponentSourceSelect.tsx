@@ -114,9 +114,9 @@ const ParamQwenImageQwenVLEncoderSelect = memo(() => {
 ParamQwenImageQwenVLEncoderSelect.displayName = 'ParamQwenImageQwenVLEncoderSelect';
 
 /**
- * Qwen Image Edit Component Source Model Select
+ * Qwen Image Component Source Model Select
  *
- * Selects a Diffusers Qwen Image Edit model to provide the VAE and text encoder
+ * Selects a Diffusers Qwen Image model to provide the VAE and text encoder
  * when using a GGUF quantized transformer.
  */
 const ParamQwenImageComponentSourceSelect = memo(() => {

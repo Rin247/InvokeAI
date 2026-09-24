@@ -1,0 +1,145 @@
+---
+title: TorchAO Quantization (WIP)
+sidebar:
+  order: 5
+---
+
+:::caution[Work in progress]
+TorchAO integration is not yet implemented in InvokeAI. This page documents the planned
+design and current blockers. It is aimed at contributors who want to pick up the work.
+:::
+
+## What is TorchAO
+
+[TorchAO](https://github.com/pytorch/ao) is PyTorch's official quantization toolkit. It can
+apply weight-only INT4/INT8/FP8 quantization to `nn.Linear` layers at runtime, without
+pre-converting the model to a separate file format. The quantized weights stay in the
+original checkpoint; TorchAO replaces the linear layers with quantized equivalents and
+runs dequantization on the fly during inference.
+
+This is different from the formats InvokeAI already supports:
+
+| Format | File | Quantization point |
+| ------ | ---- | ------------------ |
+| GGUF | Pre-quantized `.gguf` | Separate file, loaded as compressed tensors |
+| SDNQ | Pre-quantized shards | Separate file, loaded as compressed tensors |
+| BnB NF4/INT8 | Pre-quantized file | Handled by `transformers` natively |
+| FP8 Storage | Full-precision checkpoint | Post-load hook casts weights to FP8 storage |
+| **TorchAO (planned)** | Full-precision checkpoint | Post-load hook replaces `nn.Linear` with quantized equivalents |
+
+## Why it matters
+
+TorchAO's weight-only INT4 can cut a transformer's VRAM footprint by ~4x with no external
+tooling and no separate download. It works on any CUDA device (compute still runs in BF16
+unless the hardware has native INT4 tensor cores, in which case there is also a speed win).
+
+The appeal for InvokeAI is that users could point the Model Manager at a normal BF16
+diffusers pipeline and toggle INT4 quantization on — no separate GGUF file, no SDNQ
+pipeline, no BnB install.
+
+## Current blockers
+
+1. **Cache coherence.** The model cache keys by source + hash. TorchAO-quantized weights
+   produce a different runtime module than the full-precision source, but the state dict
+   keys diverge after quantization. The cache would need to key on quantization config
+   (format + granularity + group size), not just the checkpoint hash.
+
+2. **State-dict round-trip.** A TorchAO-quantized model cannot be saved through InvokeAI's
+   normal checkpoint pipeline because `state_dict()` returns quantized tensor wrappers, not
+   plain `torch.Tensor`. If the cache evicts and reloads, it would need to re-quantize from
+   the original full-precision source — which means the original must be retained.
+
+3. **Per-architecture wrapping.** Each model family (FLUX, SDXL, Qwen Image, Wan, etc.)
+   needs its own `ao.quantize_()` recipe: which layers to quantize, what group size, what
+   granularity (per-tensor vs per-channel vs per-group). TorchAO's API is still evolving
+   and the correct settings differ between architectures.
+
+4. **No save/install path for quantized weights.** InvokeAI's Model Manager assumes that
+   installing a model produces a self-contained directory that can be copied, backed up, and
+   reloaded. A TorchAO-quantized model in memory cannot be serialized back to a standard
+   checkpoint without losing the quantization.
+
+## Planned design
+
+### Scope for v1
+
+- **Runtime-only quantization on load.** The quantized model lives in the in-memory cache
+  only. It is never serialized. If the cache evicts, the model is re-quantized from the
+  original full-precision source on the next load.
+- **One architecture first.** FLUX.1 or Qwen Image 2.1 are the best targets: single
+  transformer, well-understood linear-layer layout, active community interest.
+- **INT4 weight-only, per-group.** This is the most impactful setting: ~4x VRAM reduction,
+  acceptable quality loss for most prompts, works on any CUDA device.
+
+### Config surface
+
+```python
+# Conceptual — not yet implemented
+class Main_TorchAO_Flux_Config(Main_Config_Base, Config_Base):
+    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
+    format: Literal[ModelFormat.TorchAO] = Field(default=ModelFormat.TorchAO)
+    quant_type: Literal["int4_weight_only", "int8_weight_only", "fp8_weight_only"]
+    group_size: int = Field(default=128, ge=32, le=256)
+    granularity: Literal["per_tensor", "per_channel", "per_group"] = "per_group"
+```
+
+### Loader flow
+
+```
+from_model_on_disk()  →  validate full-precision checkpoint exists
+        ↓
+_load_model()         →  load full-precision transformer via existing loader
+        ↓
+_apply_torchao()      →  ao.quantize_(model, ...) with recipe for this architecture
+        ↓
+cache (keyed by source + hash + quant config)
+```
+
+### Cache key
+
+The cache key must include the quantization config, not just the checkpoint hash. Two
+entries for the same BF16 checkpoint:
+
+```
+key = f"{source}:{hash}:torchao:int4:group128"
+key = f"{source}:{hash}:torchao:int4:group64"
+```
+
+These are distinct cache entries. Evicting one does not affect the other.
+
+## What needs to change
+
+| File | Change |
+| ---- | ------ |
+| `taxonomy.py` | Add `ModelFormat.TorchAO` |
+| `configs/main.py` | Add `Main_TorchAO_*_Config` per architecture with `from_model_on_disk()` |
+| `configs/factory.py` | Register new configs in `AnyModelConfig` union |
+| `model_loaders/*.py` | Add `@ModelLoaderRegistry.register(..., format=ModelFormat.TorchAO)` loaders |
+| `load_default.py` | Add `ModelFormat.TorchAO` to `_QUANTIZED_MODEL_FORMATS` so FP8 casting is skipped |
+| `invokeai/backend/quantization/torchao/loaders.py` | New: `apply_torchao_quantization(model, config)` helper |
+| Model cache | Key on quantization config, not just source+hash; retain original checkpoint path for re-quantization after eviction |
+
+## Open questions
+
+- **Granularity.** Per-group INT4 (group_size=128) is the TorchAO default and gives the
+  best quality/size trade-off. Should InvokeAI expose group size to users, or fix it per
+  architecture?
+- **Kernel support.** INT4 matmul requires `torch.ops.aten.neg_attention` or equivalent,
+  which is only available on CUDA with recent PyTorch builds. Should InvokeAI fall back to
+  INT8 on unsupported hardware, or reject the install outright?
+- **Quality testing.** TorchAO INT4 on FLUX-class models is usable but not lossless. The
+  team needs a benchmark suite (FID, CLIP score, prompt adherence) before enabling it for
+  general use.
+- **Interaction with FP8 Storage.** Both hooks install forward pre/post hooks on the same
+  `nn.Linear` layers. If both are enabled, TorchAO should win and FP8 Storage should be a
+  no-op — this needs an explicit guard in `load_default.py`.
+
+## Contributing
+
+If you want to pick this up:
+
+1. Start with a single architecture (FLUX.1 or Qwen Image 2.1).
+2. Get `ao.quantize_()` producing a working model in a standalone script first.
+3. Add the config class and loader following the GGUF pattern — the registry and factory
+   are well-established.
+4. The cache-key change is the hardest part and should be reviewed by a core maintainer.
