@@ -75,6 +75,12 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 - GPT Image (API Only)
 - Wan (API Only)
 
+### Platform Support
+- Python 3.14 / 3.15 preview
+- CUDA 13.4
+- ROCm 7.14
+- Intel XPU
+
 ### Other features
 
 - Support for ckpt, diffusers, and some gguf models
