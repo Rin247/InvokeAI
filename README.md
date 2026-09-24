@@ -1,9 +1,6 @@
 <div align="center">
 
-
 # Invoke - Professional Creative AI Tools for Visual Media
-
-[![discord badge]][discord link] [![latest release badge]][latest release link] [![github stars badge]][github stars link] [![github forks badge]][github forks link] [![CI checks on main badge]][CI checks on main link] [![latest commit to main badge]][latest commit to main link] [![github open issues badge]][github open issues link] [![github open prs badge]][github open prs link] [![translation status badge]][translation status link]
 
 </div>
 
