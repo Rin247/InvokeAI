@@ -169,6 +169,7 @@ _QUANTIZED_MODEL_FORMATS: frozenset[str] = frozenset(
         "bnb_quantized_nf4b",
         "bnb_quantized_int8b",
         "sdnq_quantized",
+        "torchao_quantized",
     }
 )
 

@@ -5,8 +5,9 @@ sidebar:
 ---
 
 :::caution[Work in progress]
-TorchAO integration is not yet implemented in InvokeAI. This page documents the planned
-design and current blockers. It is aimed at contributors who want to pick up the work.
+TorchAO integration is not yet fully implemented in InvokeAI. This page documents the
+implemented pieces and the remaining work. It is aimed at contributors who want to pick up
+the work.
 :::
 
 ## What is TorchAO
@@ -25,7 +26,7 @@ This is different from the formats InvokeAI already supports:
 | SDNQ | Pre-quantized shards | Separate file, loaded as compressed tensors |
 | BnB NF4/INT8 | Pre-quantized file | Handled by `transformers` natively |
 | FP8 Storage | Full-precision checkpoint | Post-load hook casts weights to FP8 storage |
-| **TorchAO (planned)** | Full-precision checkpoint | Post-load hook replaces `nn.Linear` with quantized equivalents |
+| **TorchAO (WIP)** | Full-precision checkpoint | Post-load hook replaces `nn.Linear` with quantized equivalents |
 
 ## Why it matters
 
@@ -37,27 +38,47 @@ The appeal for InvokeAI is that users could point the Model Manager at a normal 
 diffusers pipeline and toggle INT4 quantization on — no separate GGUF file, no SDNQ
 pipeline, no BnB install.
 
-## Current blockers
+## Current status
 
-1. **Cache coherence.** The model cache keys by source + hash. TorchAO-quantized weights
+### Implemented
+
+- **`ModelFormat.TorchAOQuantized`** added to `taxonomy.py`
+- **Config classes** added to `configs/main.py`:
+  - `Main_TorchAO_Flux_Config` — FLUX.1 single-file checkpoints
+  - `Main_TorchAO_Flux2_Config` — FLUX.2 single-file checkpoints (Klein, etc.)
+  - `Main_TorchAO_QwenImage_Config` — Qwen Image single-file checkpoints
+- **Config registration** in `configs/factory.py`
+- **Loader** in `model_loaders/torchao.py`:
+  - `TorchAOFluxLoader`
+  - `TorchAOFlux2Loader`
+  - `TorchAOQwenImageLoader`
+- **FP8 exclusion** in `load_default.py` (`_QUANTIZED_MODEL_FORMATS` includes `torchao_quantized`)
+- **TorchAO WIP doc** added (`docs/src/content/docs/configuration/torchao-quantization.mdx`)
+
+### Remaining work
+
+1. **Starter models.** No TorchAO-quantized starter models are defined yet. Once the format
+   is stable, starter entries should be added to `starter_models.py` pointing at full-precision
+   checkpoints with `quant_type` / `group_size` overrides, so users can install and quantize
+   in one step.
+
+2. **Cache coherence.** The model cache keys by source + hash. TorchAO-quantized weights
    produce a different runtime module than the full-precision source, but the state dict
-   keys diverge after quantization. The cache would need to key on quantization config
-   (format + granularity + group size), not just the checkpoint hash.
+   keys diverge after quantization. The cache must key on quantization config
+   (`format + quant_type + group_size`), not just the checkpoint hash.
 
-2. **State-dict round-trip.** A TorchAO-quantized model cannot be saved through InvokeAI's
+3. **State-dict round-trip.** A TorchAO-quantized model cannot be saved through InvokeAI's
    normal checkpoint pipeline because `state_dict()` returns quantized tensor wrappers, not
-   plain `torch.Tensor`. If the cache evicts and reloads, it would need to re-quantize from
-   the original full-precision source — which means the original must be retained.
+   plain `torch.Tensor`. If the cache evicts and reloads, it must re-quantize from the
+   original full-precision source — which means the original must be retained.
 
-3. **Per-architecture wrapping.** Each model family (FLUX, SDXL, Qwen Image, Wan, etc.)
-   needs its own `ao.quantize_()` recipe: which layers to quantize, what group size, what
-   granularity (per-tensor vs per-channel vs per-group). TorchAO's API is still evolving
-   and the correct settings differ between architectures.
+4. **Per-architecture tuning.** The current loader reuses the existing single-file checkpoint
+   loader for each architecture and applies TorchAO on top. This works as a proof of concept
+   but needs per-architecture validation: which layers to skip (norm, embed, proj_out),
+   what group sizes are stable, and whether INT8 is a better default for some models.
 
-4. **No save/install path for quantized weights.** InvokeAI's Model Manager assumes that
-   installing a model produces a self-contained directory that can be copied, backed up, and
-   reloaded. A TorchAO-quantized model in memory cannot be serialized back to a standard
-   checkpoint without losing the quantization.
+5. **Kernel support.** INT4 matmul requires recent PyTorch/CUDA. The loader should detect
+   unsupported hardware and either fall back to INT8 or reject the install with a clear error.
 
 ## Planned design
 
@@ -66,31 +87,32 @@ pipeline, no BnB install.
 - **Runtime-only quantization on load.** The quantized model lives in the in-memory cache
   only. It is never serialized. If the cache evicts, the model is re-quantized from the
   original full-precision source on the next load.
-- **One architecture first.** FLUX.1 or Qwen Image 2.1 are the best targets: single
-  transformer, well-understood linear-layer layout, active community interest.
 - **INT4 weight-only, per-group.** This is the most impactful setting: ~4x VRAM reduction,
   acceptable quality loss for most prompts, works on any CUDA device.
+- **One architecture first.** FLUX.1 is the best target: single transformer, well-understood
+  linear-layer layout, active community interest. FLUX.2 Klein and Qwen Image 2.1 follow.
 
 ### Config surface
 
+The configs are already implemented in `configs/main.py`:
+
 ```python
-# Conceptual — not yet implemented
-class Main_TorchAO_Flux_Config(Main_Config_Base, Config_Base):
+class Main_TorchAO_Flux_Config(Checkpoint_Config_Base, Main_Config_Base, Config_Base):
     base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
-    format: Literal[ModelFormat.TorchAO] = Field(default=ModelFormat.TorchAO)
-    quant_type: Literal["int4_weight_only", "int8_weight_only", "fp8_weight_only"]
-    group_size: int = Field(default=128, ge=32, le=256)
-    granularity: Literal["per_tensor", "per_channel", "per_group"] = "per_group"
+    format: Literal[ModelFormat.TorchAOQuantized] = Field(default=ModelFormat.TorchAOQuantized)
+    quant_type: Literal["int4_weight_only", "int8_weight_only", "fp8_weight_only"] = "int4_weight_only"
+    group_size: int = 128
+    variant: FluxVariantType = Field()
 ```
 
 ### Loader flow
 
 ```
-from_model_on_disk()  →  validate full-precision checkpoint exists
+from_model_on_disk()  →  validate full-precision checkpoint exists, reject already-quantized
         ↓
-_load_model()         →  load full-precision transformer via existing loader
+_load_model()         →  delegate to existing checkpoint loader (Flux, Flux2, Qwen Image)
         ↓
-_apply_torchao()      →  ao.quantize_(model, ...) with recipe for this architecture
+_apply_torchao()      →  ao.quantize_(model, quant_type=..., group_size=...)
         ↓
 cache (keyed by source + hash + quant config)
 ```
@@ -109,15 +131,15 @@ These are distinct cache entries. Evicting one does not affect the other.
 
 ## What needs to change
 
-| File | Change |
-| ---- | ------ |
-| `taxonomy.py` | Add `ModelFormat.TorchAO` |
-| `configs/main.py` | Add `Main_TorchAO_*_Config` per architecture with `from_model_on_disk()` |
-| `configs/factory.py` | Register new configs in `AnyModelConfig` union |
-| `model_loaders/*.py` | Add `@ModelLoaderRegistry.register(..., format=ModelFormat.TorchAO)` loaders |
-| `load_default.py` | Add `ModelFormat.TorchAO` to `_QUANTIZED_MODEL_FORMATS` so FP8 casting is skipped |
-| `invokeai/backend/quantization/torchao/loaders.py` | New: `apply_torchao_quantization(model, config)` helper |
-| Model cache | Key on quantization config, not just source+hash; retain original checkpoint path for re-quantization after eviction |
+| File | Status | Change |
+| ---- | ------ | ------ |
+| `taxonomy.py` | ✅ Done | Added `ModelFormat.TorchAOQuantized` |
+| `configs/main.py` | ✅ Done | Added `Main_TorchAO_Flux_Config`, `Main_TorchAO_Flux2_Config`, `Main_TorchAO_QwenImage_Config` |
+| `configs/factory.py` | ✅ Done | Registered new configs in `AnyModelConfig` union |
+| `model_loaders/torchao.py` | ✅ Done | New loaders: `TorchAOFluxLoader`, `TorchAOFlux2Loader`, `TorchAOQwenImageLoader` |
+| `load_default.py` | ✅ Done | Added `torchao_quantized` to `_QUANTIZED_MODEL_FORMATS` |
+| `starter_models.py` | ⏳ TODO | Add TorchAO starter model entries with `quant_type` / `group_size` overrides |
+| Model cache | ⏳ TODO | Key on quantization config, not just source+hash; retain original checkpoint path for re-quantization after eviction |
 
 ## Open questions
 
@@ -138,8 +160,8 @@ These are distinct cache entries. Evicting one does not affect the other.
 
 If you want to pick this up:
 
-1. Start with a single architecture (FLUX.1 or Qwen Image 2.1).
+1. Start with FLUX.1 (the loader already delegates to `FluxCheckpointModel`).
 2. Get `ao.quantize_()` producing a working model in a standalone script first.
-3. Add the config class and loader following the GGUF pattern — the registry and factory
-   are well-established.
+3. Add starter model entries in `starter_models.py` for the full-precision source with
+   TorchAO overrides.
 4. The cache-key change is the hardest part and should be reviewed by a core maintainer.

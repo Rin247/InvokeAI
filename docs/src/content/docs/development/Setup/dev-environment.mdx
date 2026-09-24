@@ -33,7 +33,7 @@ import SystemRequirementsLink from '@components/SystemRequirmentsLink.astro'
 
       Next, clone your fork to your local machine. You can use either HTTPS or SSH, depending on your git configuration.
 
-  3. This repository uses Git LFS to manage large files. To ensure all assets are downloaded:
+   3. This repository uses Git LFS to manage large files. To ensure all assets are downloaded:
         - Install git-lfs -> [Download here](https://git-lfs.com/)
         - Enable automatic LFS fetching for this repository:
           ```shell
@@ -43,6 +43,12 @@ import SystemRequirementsLink from '@components/SystemRequirmentsLink.astro'
           ```shell
           git lfs pull
           ```
+
+       :::warning[Remote push policy]
+         Some clones of this repo carry additional remotes such as `upstream` or `krakotay`.
+         **These remotes are read-only.** You may pull from them, but you must never push to
+         them directly. All pushes must go to your own fork (`origin` or equivalent).
+       :::
   4. Create a directory for user data (images, models, db, etc). This is typically at `~/invokeai`, but if you already have a non-dev install, you may want to create a separate directory for the dev install.
   5. Follow the [manual install](/start-here/manual/) guide, with some modifications to the install command:
 

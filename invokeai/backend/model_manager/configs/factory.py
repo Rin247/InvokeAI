@@ -62,6 +62,9 @@ from invokeai.backend.model_manager.configs.main import (
     Main_SDNQ_Diffusers_ZImage_Config,
     Main_SDNQ_Flux2_Config,
     Main_SDNQ_ZImage_Config,
+    Main_TorchAO_Flux_Config,
+    Main_TorchAO_Flux2_Config,
+    Main_TorchAO_QwenImage_Config,
     MainModelDefaultSettings,
 )
 from invokeai.backend.model_manager.configs.mistral_encoder import (
@@ -228,6 +231,10 @@ AnyModelConfig = Annotated[
         Annotated[Main_SDNQ_Diffusers_Flux2_Config, Main_SDNQ_Diffusers_Flux2_Config.get_tag()],
         Annotated[Main_SDNQ_ZImage_Config, Main_SDNQ_ZImage_Config.get_tag()],
         Annotated[Main_SDNQ_Diffusers_ZImage_Config, Main_SDNQ_Diffusers_ZImage_Config.get_tag()],
+        # Main (Pipeline) - TorchAO runtime quantization
+        Annotated[Main_TorchAO_Flux_Config, Main_TorchAO_Flux_Config.get_tag()],
+        Annotated[Main_TorchAO_Flux2_Config, Main_TorchAO_Flux2_Config.get_tag()],
+        Annotated[Main_TorchAO_QwenImage_Config, Main_TorchAO_QwenImage_Config.get_tag()],
         # VAE - checkpoint format
         Annotated[VAE_Checkpoint_Flux2_Config, VAE_Checkpoint_Flux2_Config.get_tag()],
         # IMPORTANT: VAE_Checkpoint_Wan_Config must be checked BEFORE QwenImage —
