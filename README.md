@@ -75,6 +75,8 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 - GPT Image (API Only)
 - Wan (API Only)
 
+> **Note:** SDXL, FLUX.1, FLUX.2, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
+
 ### Platform Support
 - Python 3.14 / 3.15 preview
 - CUDA 13.4
