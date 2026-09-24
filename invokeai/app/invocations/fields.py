@@ -26,8 +26,8 @@ class UIType(str, Enum, metaclass=MetaEnum):
     - Model Fields
     The most common node-author-facing use will be for model fields. Internally, there is no difference
     between SD-1, SD-2 and SDXL model fields - they all use the class `MainModelField`. To ensure the
-    base-model-specific UI is rendered, use e.g. `ui_type=UIType.SDXLMainModelField` to indicate that
-    the field is an SDXL main model field.
+    base-model-specific UI is rendered, use e.g. `ui_type=UIType.Flux2MainModelField` to indicate that
+    the field is a FLUX.2 main model field.
 
     - Any Field
     We cannot infer the usage of `typing.Any` via schema parsing, so you *must* use `ui_type=UIType.Any` to
@@ -102,13 +102,8 @@ class UIType(str, Enum, metaclass=MetaEnum):
     # Deprecated Model Field Types - use ui_model_[base|type|variant|format] instead
     MainModel = "DEPRECATED_MainModelField"
     CogView4MainModel = "DEPRECATED_CogView4MainModelField"
-    FluxMainModel = "DEPRECATED_FluxMainModelField"
-    SD3MainModel = "DEPRECATED_SD3MainModelField"
-    SDXLMainModel = "DEPRECATED_SDXLMainModelField"
-    SDXLRefinerModel = "DEPRECATED_SDXLRefinerModelField"
     ONNXModel = "DEPRECATED_ONNXModelField"
     VAEModel = "DEPRECATED_VAEModelField"
-    FluxVAEModel = "DEPRECATED_FluxVAEModelField"
     LoRAModel = "DEPRECATED_LoRAModelField"
     ControlNetModel = "DEPRECATED_ControlNetModelField"
     IPAdapterModel = "DEPRECATED_IPAdapterModelField"
@@ -120,13 +115,11 @@ class UIType(str, Enum, metaclass=MetaEnum):
     SpandrelImageToImageModel = "DEPRECATED_SpandrelImageToImageModelField"
     ControlLoRAModel = "DEPRECATED_ControlLoRAModelField"
     SigLipModel = "DEPRECATED_SigLipModelField"
-    FluxReduxModel = "DEPRECATED_FluxReduxModelField"
     LlavaOnevisionModel = "DEPRECATED_LLaVAModelField"
     Imagen3Model = "DEPRECATED_Imagen3ModelField"
     Imagen4Model = "DEPRECATED_Imagen4ModelField"
     ChatGPT4oModel = "DEPRECATED_ChatGPT4oModelField"
     Gemini2_5Model = "DEPRECATED_Gemini2_5ModelField"
-    FluxKontextModel = "DEPRECATED_FluxKontextModelField"
     Veo3Model = "DEPRECATED_Veo3ModelField"
     RunwayModel = "DEPRECATED_RunwayModelField"
     # endregion
@@ -177,7 +170,6 @@ class FieldDescriptions:
     control_lora_model = "Control LoRA model to load"
     main_model = "Main model (UNet, VAE, CLIP) to load"
     flux_model = "Flux model (Transformer) to load"
-    sd3_model = "SD3 model (MMDiTX) to load"
     cogview4_model = "CogView4 model (Transformer) to load"
     z_image_model = "Z-Image model (Transformer) to load"
     flux2_dev_model = "FLUX.2 [dev] model (Transformer) to load"
@@ -187,15 +179,11 @@ class FieldDescriptions:
     wan_model = "Wan 2.2 model (Transformer) to load"
     wan_t5_encoder = "UMT5-XXL tokenizer and text encoder for Wan 2.2"
     wan_ref_image = "Reference-image (VAE-latent) conditioning for Wan 2.2 I2V."
-    sdxl_main_model = "SDXL Main model (UNet, VAE, CLIP1, CLIP2) to load"
-    sdxl_refiner_model = "SDXL Refiner Main Modde (UNet, VAE, CLIP2) to load"
     onnx_main_model = "ONNX Main model (UNet, VAE, CLIP) to load"
     spandrel_image_to_image_model = "Image-to-Image model"
     vllm_model = "VLLM model"
     lora_weight = "The weight at which the LoRA is applied to each model"
     compel_prompt = "Prompt to be parsed by Compel to create a conditioning tensor"
-    raw_prompt = "Raw prompt text (no parsing)"
-    sdxl_aesthetic = "The aesthetic score to apply to the conditioning tensor"
     skipped_layers = "Number of layers to skip in text encoder"
     seed = "Seed for random number generation"
     steps = "Number of steps to run"
@@ -241,14 +229,10 @@ class FieldDescriptions:
     freeu_b1 = "Scaling factor for stage 1 to amplify the contributions of backbone features."
     freeu_b2 = "Scaling factor for stage 2 to amplify the contributions of backbone features."
     instantx_control_mode = "The control mode for InstantX ControlNet union models. Ignored for other ControlNet models. The standard mapping is: canny (0), tile (1), depth (2), blur (3), pose (4), gray (5), low quality (6). Negative values will be treated as 'None'."
-    flux_redux_conditioning = "FLUX Redux conditioning tensor"
-    vllm_model = "The VLLM model to use"
-    text_llm_model = "The text language model to use for text generation"
-    flux_fill_conditioning = "FLUX Fill conditioning tensor"
-    flux_kontext_conditioning = "FLUX Kontext conditioning (reference image)"
-
-
-class ImageField(BaseModel):
+    blend_alpha = (
+        "Blending factor. 0.0 = use input A only, 1.0 = use input B only, 0.5 = 50% mix of input A and input B."
+    )
+    num_1 = "The first number"
     """An image primitive field"""
 
     image_name: str = Field(description="The name of the image")
@@ -624,22 +608,7 @@ def migrate_model_ui_type(ui_type: UIType | str, json_schema_extra: dict[str, An
         case UIType.CogView4MainModel:
             ui_model_base = [BaseModelType.CogView4]
             ui_model_type = [ModelType.Main]
-        case UIType.FluxMainModel:
-            ui_model_base = [BaseModelType.Flux]
-            ui_model_type = [ModelType.Main]
-        case UIType.SD3MainModel:
-            ui_model_base = [BaseModelType.StableDiffusion3]
-            ui_model_type = [ModelType.Main]
-        case UIType.SDXLMainModel:
-            ui_model_base = [BaseModelType.StableDiffusionXL]
-            ui_model_type = [ModelType.Main]
-        case UIType.SDXLRefinerModel:
-            ui_model_base = [BaseModelType.StableDiffusionXLRefiner]
-            ui_model_type = [ModelType.Main]
         case UIType.VAEModel:
-            ui_model_type = [ModelType.VAE]
-        case UIType.FluxVAEModel:
-            ui_model_base = [BaseModelType.Flux, BaseModelType.Flux2]
             ui_model_type = [ModelType.VAE]
         case UIType.LoRAModel:
             ui_model_type = [ModelType.LoRA]
@@ -665,8 +634,6 @@ def migrate_model_ui_type(ui_type: UIType | str, json_schema_extra: dict[str, An
             ui_model_type = [ModelType.ControlLoRa]
         case UIType.SigLipModel:
             ui_model_type = [ModelType.SigLIP]
-        case UIType.FluxReduxModel:
-            ui_model_type = [ModelType.FluxRedux]
         case UIType.LlavaOnevisionModel:
             ui_model_type = [ModelType.LlavaOnevision]
         case _:

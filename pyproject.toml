@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "InvokeAI"
 description = "A full-featured AI-assisted image generation environment designed for creatives and enthusiasts."
-requires-python = ">=3.14, <3.16"
+requires-python = ">=3.13, <3.16"
 readme = { content-type = "text/markdown", file = "README.md" }
 keywords = ["stable-diffusion", "AI"]
 dynamic = ["version"]
@@ -159,7 +159,7 @@ dependencies = [
 
 "onnx" = ["onnxruntime"]
 "onnx-cuda" = ["onnxruntime-gpu"]
-"onnx-directml" = ["onnxruntime-directml"]
+"onnx-directml" = ["onnxruntime-directml; sys_platform == 'win32'"]
 "dist" = ["pip-tools", "pipdeptree", "twine"]
 "dev" = ["jurigged", "pudb", "snakeviz", "gprof2dot"]
 "test" = [

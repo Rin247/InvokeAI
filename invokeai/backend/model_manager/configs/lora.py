@@ -505,68 +505,6 @@ def _get_flux2_lora_variant(state_dict: dict[str | int, Any]) -> Flux2VariantTyp
     return None
 
 
-class LoRA_OMI_Config_Base(LoRA_Config_Base):
-    format: Literal[ModelFormat.OMI] = Field(default=ModelFormat.OMI)
-
-    @classmethod
-    def from_model_on_disk(cls, mod: ModelOnDisk, override_fields: dict[str, Any]) -> Self:
-        raise_if_not_file(mod)
-
-        raise_for_override_fields(cls, override_fields)
-
-        cls._validate_looks_like_omi_lora(mod)
-
-        cls._validate_base(mod)
-
-        return cls(**override_fields)
-
-    @classmethod
-    def _validate_base(cls, mod: ModelOnDisk) -> None:
-        """Raise `NotAMatch` if the model base does not match this config class."""
-        expected_base = cls.model_fields["base"].default
-        recognized_base = cls._get_base_or_raise(mod)
-        if expected_base is not recognized_base:
-            raise NotAMatchError(f"base is {recognized_base}, not {expected_base}")
-
-    @classmethod
-    def _validate_looks_like_omi_lora(cls, mod: ModelOnDisk) -> None:
-        """Raise `NotAMatch` if the model metadata does not look like an OMI LoRA."""
-        flux_format = _get_flux_lora_format(mod)
-        if flux_format in [FluxLoRAFormat.Control, FluxLoRAFormat.Diffusers]:
-            raise NotAMatchError("model looks like ControlLoRA or Diffusers LoRA")
-
-        metadata = mod.metadata()
-
-        metadata_looks_like_omi_lora = (
-            bool(metadata.get("modelspec.sai_model_spec"))
-            and metadata.get("ot_branch") == "omi_format"
-            and metadata.get("modelspec.architecture", "").split("/")[1].lower() == "lora"
-        )
-
-        if not metadata_looks_like_omi_lora:
-            raise NotAMatchError("metadata does not look like OMI LoRA")
-
-    @classmethod
-    def _get_base_or_raise(cls, mod: ModelOnDisk) -> Literal[BaseModelType.Flux, BaseModelType.StableDiffusionXL]:
-        metadata = mod.metadata()
-        architecture = metadata["modelspec.architecture"]
-
-        if architecture == stable_diffusion_xl_1_lora:
-            return BaseModelType.StableDiffusionXL
-        elif architecture == flux_dev_1_lora:
-            return BaseModelType.Flux
-        else:
-            raise NotAMatchError(f"unrecognised/unsupported architecture for OMI LoRA: {architecture}")
-
-
-class LoRA_OMI_SDXL_Config(LoRA_OMI_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
-
-
-class LoRA_OMI_FLUX_Config(LoRA_OMI_Config_Base, Config_Base):
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
-
-
 class LoRA_LyCORIS_Config_Base(LoRA_Config_Base):
     """Model config for LoRA/Lycoris models."""
 
@@ -639,52 +577,7 @@ class LoRA_LyCORIS_Config_Base(LoRA_Config_Base):
 
     @classmethod
     def _get_base_or_raise(cls, mod: ModelOnDisk) -> BaseModelType:
-        if _get_flux_lora_format(mod):
-            if _is_flux2_lora(mod):
-                return BaseModelType.Flux2
-            return BaseModelType.Flux
-
-        state_dict = mod.load_state_dict()
-        str_keys = [k for k in state_dict.keys() if isinstance(k, str)]
-
-        # Rule out Anima LoRAs — their lora_te_ keys have shapes that
-        # lora_token_vector_length() misidentifies as SD2/SDXL.
-        if has_cosmos_dit_kohya_keys(str_keys) or has_cosmos_dit_peft_keys(str_keys):
-            raise NotAMatchError("model looks like an Anima LoRA, not a Stable Diffusion LoRA")
-
-        # If we've gotten here, we assume that the model is a Stable Diffusion model
-        token_vector_length = lora_token_vector_length(state_dict)
-        if token_vector_length == 768:
-            return BaseModelType.StableDiffusion1
-        elif token_vector_length == 1024:
-            return BaseModelType.StableDiffusion2
-        elif token_vector_length == 1280:
-            return BaseModelType.StableDiffusionXL  # recognizes format at https://civitai.com/models/224641
-        elif token_vector_length == 2048:
-            return BaseModelType.StableDiffusionXL
-        # Some SDXL LoRAs (e.g. self-attention-only "slider" LoRAs) target only the UNet
-        # and lack the cross-attention / text-encoder keys that lora_token_vector_length()
-        # needs. Fall back to detecting SDXL from the UNet's deep transformer-block structure.
-        elif _state_dict_looks_like_sdxl_unet_lora(state_dict):
-            return BaseModelType.StableDiffusionXL
-        else:
-            raise NotAMatchError(f"unrecognized token vector length {token_vector_length}")
-
-
-class LoRA_LyCORIS_SD1_Config(LoRA_LyCORIS_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class LoRA_LyCORIS_SD2_Config(LoRA_LyCORIS_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
-
-
-class LoRA_LyCORIS_SDXL_Config(LoRA_LyCORIS_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
-
-
-class LoRA_LyCORIS_FLUX_Config(LoRA_LyCORIS_Config_Base, Config_Base):
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
+        raise NotAMatchError("unable to determine base type from state dict")
 
 
 class LoRA_LyCORIS_Flux2_Config(LoRA_LyCORIS_Config_Base, Config_Base):
@@ -1196,37 +1089,6 @@ class LoRA_LyCORIS_Wan_Config(LoRA_LyCORIS_Config_Base, Config_Base):
         return instance
 
 
-class ControlAdapter_Config_Base(ABC, BaseModel):
-    default_settings: ControlAdapterDefaultSettings | None = Field(None)
-
-
-class ControlLoRA_LyCORIS_FLUX_Config(ControlAdapter_Config_Base, Config_Base):
-    """Model config for Control LoRA models."""
-
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
-    type: Literal[ModelType.ControlLoRa] = Field(default=ModelType.ControlLoRa)
-    format: Literal[ModelFormat.LyCORIS] = Field(default=ModelFormat.LyCORIS)
-
-    trigger_phrases: set[str] | None = Field(None)
-
-    @classmethod
-    def from_model_on_disk(cls, mod: ModelOnDisk, override_fields: dict[str, Any]) -> Self:
-        raise_if_not_file(mod)
-
-        raise_for_override_fields(cls, override_fields)
-
-        cls._validate_looks_like_control_lora(mod)
-
-        return cls(**override_fields)
-
-    @classmethod
-    def _validate_looks_like_control_lora(cls, mod: ModelOnDisk) -> None:
-        state_dict = mod.load_state_dict()
-
-        if not is_state_dict_likely_flux_control(state_dict):
-            raise NotAMatchError("model state dict does not look like a Flux Control LoRA")
-
-
 class LoRA_Diffusers_Config_Base(LoRA_Config_Base):
     """Model config for LoRA/Diffusers models."""
 
@@ -1291,22 +1153,6 @@ class LoRA_Diffusers_Config_Base(LoRA_Config_Base):
             if wf.exists():
                 return wf
         raise NotAMatchError("missing pytorch_lora_weights.bin or pytorch_lora_weights.safetensors")
-
-
-class LoRA_Diffusers_SD1_Config(LoRA_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class LoRA_Diffusers_SD2_Config(LoRA_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
-
-
-class LoRA_Diffusers_SDXL_Config(LoRA_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
-
-
-class LoRA_Diffusers_FLUX_Config(LoRA_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
 
 
 class LoRA_Diffusers_Flux2_Config(LoRA_Diffusers_Config_Base, Config_Base):

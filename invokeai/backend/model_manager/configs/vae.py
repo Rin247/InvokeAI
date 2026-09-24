@@ -200,22 +200,6 @@ class VAE_Checkpoint_Config_Base(Checkpoint_Config_Base):
         raise NotAMatchError("cannot determine base type")
 
 
-class VAE_Checkpoint_SD1_Config(VAE_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class VAE_Checkpoint_SD2_Config(VAE_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
-
-
-class VAE_Checkpoint_SDXL_Config(VAE_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
-
-
-class VAE_Checkpoint_FLUX_Config(VAE_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
-
-
 class VAE_Checkpoint_Flux2_Config(Checkpoint_Config_Base, Config_Base):
     """Model config for FLUX.2 VAE checkpoint models (AutoencoderKLFlux2)."""
 
@@ -464,14 +448,6 @@ class VAE_Diffusers_Config_Base(Diffusers_Config_Base):
         else:
             # TODO(psyche): Figure out how to positively identify SD1 here, and raise if we can't. Until then, YOLO.
             return BaseModelType.StableDiffusion1
-
-
-class VAE_Diffusers_SD1_Config(VAE_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class VAE_Diffusers_SDXL_Config(VAE_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
 
 
 class VAE_Diffusers_Flux2_Config(Diffusers_Config_Base, Config_Base):

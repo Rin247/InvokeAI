@@ -126,22 +126,6 @@ class ControlNet_Diffusers_Config_Base(Diffusers_Config_Base):
                 raise NotAMatchError(f"unrecognized cross_attention_dim {dimension}")
 
 
-class ControlNet_Diffusers_SD1_Config(ControlNet_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class ControlNet_Diffusers_SD2_Config(ControlNet_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
-
-
-class ControlNet_Diffusers_SDXL_Config(ControlNet_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
-
-
-class ControlNet_Diffusers_FLUX_Config(ControlNet_Diffusers_Config_Base, Config_Base):
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
-
-
 class ControlNet_Checkpoint_Config_Base(Checkpoint_Config_Base):
     """Model config for ControlNet models (diffusers version)."""
 
@@ -218,22 +202,6 @@ class ControlNet_Checkpoint_Config_Base(Checkpoint_Config_Base):
                     pass
 
         raise NotAMatchError("unable to determine base type from state dict")
-
-
-class ControlNet_Checkpoint_SD1_Config(ControlNet_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class ControlNet_Checkpoint_SD2_Config(ControlNet_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
-
-
-class ControlNet_Checkpoint_SDXL_Config(ControlNet_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
-
-
-class ControlNet_Checkpoint_FLUX_Config(ControlNet_Checkpoint_Config_Base, Config_Base):
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
 
 
 def _has_z_image_control_keys(state_dict: dict) -> bool:

@@ -55,7 +55,7 @@ _LATENT_PROJ_KEY = "lq_proj.latent_proj.0.weight"
 # in the weights can separate them.
 _LATENT_CHANNELS_TO_BASES: dict[int, set[BaseModelType]] = {
     4: {BaseModelType.StableDiffusionXL},
-    16: {BaseModelType.Flux, BaseModelType.StableDiffusion3, BaseModelType.QwenImage},
+    16: {BaseModelType.QwenImage},
     128: {BaseModelType.Flux2},
 }
 
@@ -105,28 +105,25 @@ def _raise_if_architecture_unsupported(shapes: _Shapes) -> None:
 
 
 def _raise_if_no_backbone_can_accept(shapes: _Shapes) -> None:
-    """Reject a PiD decoder that none of the five backbone configs could ever claim.
+    """Reject a PiD decoder that none of the supported backbone configs could ever claim.
 
     The counterpart to `_validate_base`, and the reason the two are separate. `_validate_base` decides
-    *which* backbone a checkpoint belongs to and says "not this one" with `NotAMatchError` — four of
-    the five classes are meant to say exactly that about every valid checkpoint. A rejection here is
-    backbone-independent, so all five would raise it for the same reason, leaving the file with no
+    *which* backbone a checkpoint belongs to and says "not this one" with `NotAMatchError` — the other
+    classes are meant to say exactly that about every invalid checkpoint. A rejection here is
+    backbone-independent, so all configs would raise it for the same reason, leaving the file with no
     match at all and letting the factory register it through the `Unknown_Config` fallback: a PiD
     decoder on record as a model nothing can load. Hence `InvalidMatchError`.
-
-    Runs before the contract check because a decoder for an unsupported backbone would otherwise be
-    reported as a shape mismatch on one weight, which is true and useless.
     """
     channels = shapes[_LATENT_PROJ_KEY][1]  # type: ignore[index]  # rank checked above
     if channels not in _LATENT_CHANNELS_TO_BASES:
         raise InvalidMatchError(
             f"PiD checkpoint has {channels} latent channels; no supported backbone uses this "
-            "(supported: 4 for SDXL, 16 for FLUX.1/SD3/Qwen-Image, 128 for FLUX.2)"
+            "(supported: 4 for SDXL, 16 for Qwen-Image, 128 for FLUX.2)"
         )
 
 
 def _and_more(items: list[Any]) -> str:
-    return f" (+ {len(items) - 5} more)" if len(items) > 5 else ""
+    return f" (+ {len(items) - 3} more)" if len(items) > 3 else ""
 
 
 def _raise_if_pid_net_contract_unmet(shapes: _Shapes, contract: Mapping[str, tuple[int, ...]]) -> None:
@@ -244,7 +241,7 @@ def _backbone_from_components(components: tuple[str, ...]) -> BaseModelType | No
 
 
 # Backbones for which NVIDIA ships exactly one preset — for these the variant is known even when the
-# name gives nothing away. FLUX.1 / FLUX.2 / SD3 ship both presets and fall back to `Res2k_Sr4x`.
+# name gives nothing away. SD3 / Qwen-Image ship both presets and fall back to `Res2k_Sr4x`.
 _SINGLE_VARIANT_BACKBONES: dict[BaseModelType, PiDDecoderVariantType] = {
     BaseModelType.StableDiffusionXL: PiDDecoderVariantType.Res2kTo4k_Sr4x,
     BaseModelType.QwenImage: PiDDecoderVariantType.Res2kTo4k_Sr4x,
@@ -273,7 +270,7 @@ class PiDDecoder_Checkpoint_Config_Base(Checkpoint_Config_Base):
     Concrete subclasses pin `base` to a specific backbone. A checkpoint is first held to the full
     `PidNet` contract — the same keys and shapes `load_pid_decoder` demands — and the backbone then
     comes from the latent channel count in the weights, with an explicit override or the name as the
-    tie-breaker for the architecturally identical FLUX.1 / SD3 / Qwen-Image family. `variant` is
+    tie-breaker for the architecturally identical SD3 / Qwen-Image family. `variant` is
     carried as data without participating in the discriminator tag (one config class per backbone).
     """
 
@@ -284,7 +281,7 @@ class PiDDecoder_Checkpoint_Config_Base(Checkpoint_Config_Base):
     def from_model_on_disk(cls, mod: ModelOnDisk, override_fields: dict[str, Any]) -> Self:
         raise_if_not_file(mod)
         # An explicit `base` is validated against this class's Literal here, so it already narrows
-        # identification to exactly one of the five PiD config classes.
+        # identification to exactly one of the PiD config classes.
         raise_for_override_fields(cls, override_fields)
 
         state_dict = mod.load_state_dict()
@@ -345,15 +342,15 @@ class PiDDecoder_Checkpoint_Config_Base(Checkpoint_Config_Base):
         four of the five classes are supposed to say about every valid checkpoint. The reasons that
         would rule out all five are raised in ``from_model_on_disk`` before this runs.
 
-        The latent channel count is authoritative and is the only thing separating SDXL (4ch) and
-        FLUX.2 (128ch) from the 16ch family. FLUX.1, SD3 and Qwen-Image are architecturally
-        identical, so within that family, in order of how much the evidence can be trusted:
+        The latent channel count is authoritative and is the only thing separating SDXL (4ch) from
+        the 16ch family. SD3 and Qwen-Image are architecturally identical; within that family, in
+        order of how much the evidence can be trusted:
 
         - an explicit ``base`` override wins outright. ``raise_for_override_fields`` has already
-          validated it against this class's ``Literal``, so it names exactly one of the five, and
+          validated it against this class's ``Literal``, so it names exactly one of the configs, and
           whoever set it knows more than a filename anyone can write;
-        - failing that, a name component naming exactly one of the three decides;
-        - failing that, the family defaults to FLUX.1.
+        - failing that, a name component naming exactly one of the two decides;
+        - failing that, the family defaults to Qwen-Image.
         """
         expected_base = cls.model_fields["base"].default
         # Guaranteed present: an unsupported channel count was rejected outright before this ran.
@@ -365,44 +362,23 @@ class PiDDecoder_Checkpoint_Config_Base(Checkpoint_Config_Base):
             return
 
         # A name pointing outside the family — a 16-channel file called "sdxl" — contradicts the
-        # weights and is discarded rather than obeyed. Obeying it would have all three 16ch classes
+        # weights and is discarded rather than obeyed. Obeying it would have both 16ch classes
         # reject the file, leaving a perfectly good decoder to the `Unknown_Config` fallback.
         if named_base not in candidate_bases:
             named_base = None
 
         if named_base is None:
-            if expected_base is not BaseModelType.Flux:
-                raise NotAMatchError("ambiguous 16-channel PiD checkpoint; defaulting to FLUX.1")
+            if expected_base is not BaseModelType.QwenImage:
+                raise NotAMatchError("ambiguous 16-channel PiD checkpoint; defaulting to Qwen-Image")
             return
         if named_base is not expected_base:
             raise NotAMatchError(f"name indicates {named_base}, not {expected_base}")
-
-
-class PiDDecoder_Checkpoint_FLUX_Config(PiDDecoder_Checkpoint_Config_Base, Config_Base):
-    """PiD decoder for the FLUX.1 backbone (16-channel latent)."""
-
-    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
-    variant: PiDDecoderVariantType = Field(description="Resolution preset of the PiD decoder checkpoint.")
 
 
 class PiDDecoder_Checkpoint_Flux2_Config(PiDDecoder_Checkpoint_Config_Base, Config_Base):
     """PiD decoder for the FLUX.2 backbone (128-channel latent)."""
 
     base: Literal[BaseModelType.Flux2] = Field(default=BaseModelType.Flux2)
-    variant: PiDDecoderVariantType = Field(description="Resolution preset of the PiD decoder checkpoint.")
-
-
-class PiDDecoder_Checkpoint_SD3_Config(PiDDecoder_Checkpoint_Config_Base, Config_Base):
-    """PiD decoder for the Stable Diffusion 3 backbone (16-channel latent)."""
-
-    base: Literal[BaseModelType.StableDiffusion3] = Field(default=BaseModelType.StableDiffusion3)
-    variant: PiDDecoderVariantType = Field(description="Resolution preset of the PiD decoder checkpoint.")
-
-
-class PiDDecoder_Checkpoint_SDXL_Config(PiDDecoder_Checkpoint_Config_Base, Config_Base):
-    """PiD decoder for the SDXL backbone (4-channel latent)."""
-
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
     variant: PiDDecoderVariantType = Field(description="Resolution preset of the PiD decoder checkpoint.")
 
 

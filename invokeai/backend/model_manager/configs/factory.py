@@ -18,93 +18,49 @@ from invokeai.backend.model_manager.configs.clip_vision import CLIPVision_Diffus
 from invokeai.backend.model_manager.configs.controlnet import (
     ControlAdapterDefaultSettings,
     ControlNet_Checkpoint_Anima_Config,
-    ControlNet_Checkpoint_FLUX_Config,
-    ControlNet_Checkpoint_SD1_Config,
-    ControlNet_Checkpoint_SD2_Config,
-    ControlNet_Checkpoint_SDXL_Config,
     ControlNet_Checkpoint_ZImage_Config,
-    ControlNet_Diffusers_FLUX_Config,
-    ControlNet_Diffusers_SD1_Config,
-    ControlNet_Diffusers_SD2_Config,
-    ControlNet_Diffusers_SDXL_Config,
 )
 from invokeai.backend.model_manager.configs.external_api import ExternalApiModelConfig
-from invokeai.backend.model_manager.configs.flux_redux import FLUXRedux_Checkpoint_Config
 from invokeai.backend.model_manager.configs.gemma2_encoder import (
     Gemma2Encoder_Gemma2Encoder_Config,
     Gemma2Encoder_GGUF_Config,
 )
 from invokeai.backend.model_manager.configs.identification_utils import InvalidMatchError, NotAMatchError
-from invokeai.backend.model_manager.configs.ip_adapter import (
-    IPAdapter_Checkpoint_FLUX_Config,
-    IPAdapter_Checkpoint_SD1_Config,
-    IPAdapter_Checkpoint_SD2_Config,
-    IPAdapter_Checkpoint_SDXL_Config,
-    IPAdapter_InvokeAI_SD1_Config,
-    IPAdapter_InvokeAI_SD2_Config,
-    IPAdapter_InvokeAI_SDXL_Config,
-)
 from invokeai.backend.model_manager.configs.llava_onevision import LlavaOnevision_Diffusers_Config
 from invokeai.backend.model_manager.configs.lora import (
-    ControlLoRA_LyCORIS_FLUX_Config,
     LoRA_Diffusers_Flux2_Config,
-    LoRA_Diffusers_FLUX_Config,
-    LoRA_Diffusers_SD1_Config,
-    LoRA_Diffusers_SD2_Config,
-    LoRA_Diffusers_SDXL_Config,
     LoRA_Diffusers_ZImage_Config,
     LoRA_LyCORIS_Anima_Config,
     LoRA_LyCORIS_Flux2_Config,
-    LoRA_LyCORIS_FLUX_Config,
     LoRA_LyCORIS_Krea2_Config,
     LoRA_LyCORIS_QwenImage_Config,
-    LoRA_LyCORIS_SD1_Config,
-    LoRA_LyCORIS_SD2_Config,
-    LoRA_LyCORIS_SDXL_Config,
     LoRA_LyCORIS_Wan_Config,
     LoRA_LyCORIS_ZImage_Config,
-    LoRA_OMI_FLUX_Config,
-    LoRA_OMI_SDXL_Config,
     LoraModelDefaultSettings,
 )
 from invokeai.backend.model_manager.configs.main import (
-    Main_BnBNF4_FLUX_Config,
     Main_Checkpoint_Anima_Config,
     Main_Checkpoint_Flux2_Config,
-    Main_Checkpoint_FLUX_Config,
     Main_Checkpoint_Krea2_Config,
     Main_Checkpoint_QwenImage_Config,
-    Main_Checkpoint_SD1_Config,
-    Main_Checkpoint_SD2_Config,
-    Main_Checkpoint_SDXL_Config,
-    Main_Checkpoint_SDXLRefiner_Config,
     Main_Checkpoint_Wan_Config,
     Main_Checkpoint_ZImage_Config,
     Main_Diffusers_CogView4_Config,
     Main_Diffusers_ErnieImage_Config,
     Main_Diffusers_Flux2_Config,
-    Main_Diffusers_FLUX_Config,
     Main_Diffusers_Ideogram4_Config,
     Main_Diffusers_Krea2_Config,
     Main_Diffusers_QwenImage_Config,
-    Main_Diffusers_SD1_Config,
-    Main_Diffusers_SD2_Config,
-    Main_Diffusers_SD3_Config,
-    Main_Diffusers_SDXL_Config,
-    Main_Diffusers_SDXLRefiner_Config,
     Main_Diffusers_Wan_Config,
     Main_Diffusers_ZImage_Config,
     Main_GGUF_Flux2_Config,
-    Main_GGUF_FLUX_Config,
     Main_GGUF_Krea2_Config,
     Main_GGUF_QwenImage_Config,
     Main_GGUF_Wan_Config,
     Main_GGUF_ZImage_Config,
     Main_SDNQ_Diffusers_Flux2_Config,
-    Main_SDNQ_Diffusers_FLUX_Config,
     Main_SDNQ_Diffusers_ZImage_Config,
     Main_SDNQ_Flux2_Config,
-    Main_SDNQ_FLUX_Config,
     Main_SDNQ_ZImage_Config,
     MainModelDefaultSettings,
 )
@@ -115,10 +71,7 @@ from invokeai.backend.model_manager.configs.mistral_encoder import (
 )
 from invokeai.backend.model_manager.configs.pid_decoder import (
     PiDDecoder_Checkpoint_Flux2_Config,
-    PiDDecoder_Checkpoint_FLUX_Config,
     PiDDecoder_Checkpoint_QwenImage_Config,
-    PiDDecoder_Checkpoint_SD3_Config,
-    PiDDecoder_Checkpoint_SDXL_Config,
 )
 from invokeai.backend.model_manager.configs.qwen3_encoder import (
     Qwen3Encoder_Checkpoint_Config,
@@ -137,10 +90,6 @@ from invokeai.backend.model_manager.configs.qwen_vl_encoder import (
 )
 from invokeai.backend.model_manager.configs.siglip import SigLIP_Diffusers_Config
 from invokeai.backend.model_manager.configs.spandrel import Spandrel_Checkpoint_Config
-from invokeai.backend.model_manager.configs.t2i_adapter import (
-    T2IAdapter_Diffusers_SD1_Config,
-    T2IAdapter_Diffusers_SDXL_Config,
-)
 from invokeai.backend.model_manager.configs.t5_encoder import (
     T5Encoder_BnBLLMint8_Config,
     T5Encoder_GGUF_Config,
@@ -149,26 +98,16 @@ from invokeai.backend.model_manager.configs.t5_encoder import (
 )
 from invokeai.backend.model_manager.configs.text_llm import TextLLM_Diffusers_Config
 from invokeai.backend.model_manager.configs.textual_inversion import (
-    TI_File_SD1_Config,
-    TI_File_SD2_Config,
-    TI_File_SDXL_Config,
-    TI_Folder_SD1_Config,
-    TI_Folder_SD2_Config,
-    TI_Folder_SDXL_Config,
+    TI_File_Config_Base,
+    TI_Folder_Config_Base,
 )
 from invokeai.backend.model_manager.configs.unknown import Unknown_Config
 from invokeai.backend.model_manager.configs.vae import (
     VAE_Checkpoint_Anima_Config,
     VAE_Checkpoint_Flux2_Config,
-    VAE_Checkpoint_FLUX_Config,
     VAE_Checkpoint_QwenImage_Config,
-    VAE_Checkpoint_SD1_Config,
-    VAE_Checkpoint_SD2_Config,
-    VAE_Checkpoint_SDXL_Config,
     VAE_Checkpoint_Wan_Config,
     VAE_Diffusers_Flux2_Config,
-    VAE_Diffusers_SD1_Config,
-    VAE_Diffusers_SDXL_Config,
     VAE_Diffusers_Wan_Config,
 )
 from invokeai.backend.model_manager.configs.wan_t5_encoder import WanT5Encoder_WanT5Encoder_Config
@@ -263,12 +202,6 @@ def _is_known_model_marker(config_name: str, config: Any) -> bool:
 AnyModelConfig = Annotated[
     Union[
         # Main (Pipeline) - diffusers format
-        Annotated[Main_Diffusers_SD1_Config, Main_Diffusers_SD1_Config.get_tag()],
-        Annotated[Main_Diffusers_SD2_Config, Main_Diffusers_SD2_Config.get_tag()],
-        Annotated[Main_Diffusers_SDXL_Config, Main_Diffusers_SDXL_Config.get_tag()],
-        Annotated[Main_Diffusers_SDXLRefiner_Config, Main_Diffusers_SDXLRefiner_Config.get_tag()],
-        Annotated[Main_Diffusers_SD3_Config, Main_Diffusers_SD3_Config.get_tag()],
-        Annotated[Main_Diffusers_FLUX_Config, Main_Diffusers_FLUX_Config.get_tag()],
         Annotated[Main_Diffusers_Flux2_Config, Main_Diffusers_Flux2_Config.get_tag()],
         Annotated[Main_Diffusers_CogView4_Config, Main_Diffusers_CogView4_Config.get_tag()],
         Annotated[Main_Diffusers_QwenImage_Config, Main_Diffusers_QwenImage_Config.get_tag()],
@@ -278,44 +211,24 @@ AnyModelConfig = Annotated[
         Annotated[Main_Diffusers_Ideogram4_Config, Main_Diffusers_Ideogram4_Config.get_tag()],
         Annotated[Main_Diffusers_Krea2_Config, Main_Diffusers_Krea2_Config.get_tag()],
         # Main (Pipeline) - checkpoint format
-        # IMPORTANT: FLUX.2 must be checked BEFORE FLUX.1 because FLUX.2 has specific validation
-        # that will reject FLUX.1 models, but FLUX.1 validation may incorrectly match FLUX.2 models
-        Annotated[Main_Checkpoint_SD1_Config, Main_Checkpoint_SD1_Config.get_tag()],
-        Annotated[Main_Checkpoint_SD2_Config, Main_Checkpoint_SD2_Config.get_tag()],
-        Annotated[Main_Checkpoint_SDXL_Config, Main_Checkpoint_SDXL_Config.get_tag()],
-        Annotated[Main_Checkpoint_SDXLRefiner_Config, Main_Checkpoint_SDXLRefiner_Config.get_tag()],
+        # IMPORTANT: Flux2 must be checked before other variants that share architecture
         Annotated[Main_Checkpoint_Flux2_Config, Main_Checkpoint_Flux2_Config.get_tag()],
-        Annotated[Main_Checkpoint_FLUX_Config, Main_Checkpoint_FLUX_Config.get_tag()],
         Annotated[Main_Checkpoint_QwenImage_Config, Main_Checkpoint_QwenImage_Config.get_tag()],
         Annotated[Main_Checkpoint_Wan_Config, Main_Checkpoint_Wan_Config.get_tag()],
         Annotated[Main_Checkpoint_ZImage_Config, Main_Checkpoint_ZImage_Config.get_tag()],
         Annotated[Main_Checkpoint_Krea2_Config, Main_Checkpoint_Krea2_Config.get_tag()],
         Annotated[Main_Checkpoint_Anima_Config, Main_Checkpoint_Anima_Config.get_tag()],
         # Main (Pipeline) - quantized formats
-        # IMPORTANT: FLUX.2 must be checked BEFORE FLUX.1 because FLUX.2 has specific validation
-        # that will reject FLUX.1 models, but FLUX.1 validation may incorrectly match FLUX.2 models
-        Annotated[Main_BnBNF4_FLUX_Config, Main_BnBNF4_FLUX_Config.get_tag()],
         Annotated[Main_GGUF_Flux2_Config, Main_GGUF_Flux2_Config.get_tag()],
-        Annotated[Main_GGUF_FLUX_Config, Main_GGUF_FLUX_Config.get_tag()],
         Annotated[Main_GGUF_QwenImage_Config, Main_GGUF_QwenImage_Config.get_tag()],
         Annotated[Main_GGUF_Wan_Config, Main_GGUF_Wan_Config.get_tag()],
         Annotated[Main_GGUF_ZImage_Config, Main_GGUF_ZImage_Config.get_tag()],
         Annotated[Main_GGUF_Krea2_Config, Main_GGUF_Krea2_Config.get_tag()],
-        # IMPORTANT: FLUX.2 must be listed BEFORE FLUX.1 here. An ambiguous SDNQ transformer
-        # checkpoint (prefixed FLUX.2 keys) can look like a FLUX.1 main model, so FLUX.2 must get
-        # first refusal. Main_SDNQ_FLUX_Config additionally rejects FLUX.2 state dicts to keep the
-        # two mutually exclusive regardless of iteration order.
         Annotated[Main_SDNQ_Flux2_Config, Main_SDNQ_Flux2_Config.get_tag()],
         Annotated[Main_SDNQ_Diffusers_Flux2_Config, Main_SDNQ_Diffusers_Flux2_Config.get_tag()],
-        Annotated[Main_SDNQ_FLUX_Config, Main_SDNQ_FLUX_Config.get_tag()],
-        Annotated[Main_SDNQ_Diffusers_FLUX_Config, Main_SDNQ_Diffusers_FLUX_Config.get_tag()],
         Annotated[Main_SDNQ_ZImage_Config, Main_SDNQ_ZImage_Config.get_tag()],
         Annotated[Main_SDNQ_Diffusers_ZImage_Config, Main_SDNQ_Diffusers_ZImage_Config.get_tag()],
         # VAE - checkpoint format
-        Annotated[VAE_Checkpoint_SD1_Config, VAE_Checkpoint_SD1_Config.get_tag()],
-        Annotated[VAE_Checkpoint_SD2_Config, VAE_Checkpoint_SD2_Config.get_tag()],
-        Annotated[VAE_Checkpoint_SDXL_Config, VAE_Checkpoint_SDXL_Config.get_tag()],
-        Annotated[VAE_Checkpoint_FLUX_Config, VAE_Checkpoint_FLUX_Config.get_tag()],
         Annotated[VAE_Checkpoint_Flux2_Config, VAE_Checkpoint_Flux2_Config.get_tag()],
         # IMPORTANT: VAE_Checkpoint_Wan_Config must be checked BEFORE QwenImage —
         # both share the AutoencoderKLWan architecture and the Wan config relies
@@ -325,36 +238,16 @@ AnyModelConfig = Annotated[
         Annotated[VAE_Checkpoint_QwenImage_Config, VAE_Checkpoint_QwenImage_Config.get_tag()],
         Annotated[VAE_Checkpoint_Anima_Config, VAE_Checkpoint_Anima_Config.get_tag()],
         # VAE - diffusers format
-        Annotated[VAE_Diffusers_SD1_Config, VAE_Diffusers_SD1_Config.get_tag()],
-        Annotated[VAE_Diffusers_SDXL_Config, VAE_Diffusers_SDXL_Config.get_tag()],
         Annotated[VAE_Diffusers_Flux2_Config, VAE_Diffusers_Flux2_Config.get_tag()],
         Annotated[VAE_Diffusers_Wan_Config, VAE_Diffusers_Wan_Config.get_tag()],
         # PiD Decoder - checkpoint format
-        Annotated[PiDDecoder_Checkpoint_FLUX_Config, PiDDecoder_Checkpoint_FLUX_Config.get_tag()],
         Annotated[PiDDecoder_Checkpoint_Flux2_Config, PiDDecoder_Checkpoint_Flux2_Config.get_tag()],
-        Annotated[PiDDecoder_Checkpoint_SD3_Config, PiDDecoder_Checkpoint_SD3_Config.get_tag()],
-        Annotated[PiDDecoder_Checkpoint_SDXL_Config, PiDDecoder_Checkpoint_SDXL_Config.get_tag()],
         Annotated[PiDDecoder_Checkpoint_QwenImage_Config, PiDDecoder_Checkpoint_QwenImage_Config.get_tag()],
         # ControlNet - checkpoint format
-        Annotated[ControlNet_Checkpoint_SD1_Config, ControlNet_Checkpoint_SD1_Config.get_tag()],
-        Annotated[ControlNet_Checkpoint_SD2_Config, ControlNet_Checkpoint_SD2_Config.get_tag()],
-        Annotated[ControlNet_Checkpoint_SDXL_Config, ControlNet_Checkpoint_SDXL_Config.get_tag()],
-        Annotated[ControlNet_Checkpoint_FLUX_Config, ControlNet_Checkpoint_FLUX_Config.get_tag()],
         Annotated[ControlNet_Checkpoint_ZImage_Config, ControlNet_Checkpoint_ZImage_Config.get_tag()],
         Annotated[ControlNet_Checkpoint_Anima_Config, ControlNet_Checkpoint_Anima_Config.get_tag()],
-        # ControlNet - diffusers format
-        Annotated[ControlNet_Diffusers_SD1_Config, ControlNet_Diffusers_SD1_Config.get_tag()],
-        Annotated[ControlNet_Diffusers_SD2_Config, ControlNet_Diffusers_SD2_Config.get_tag()],
-        Annotated[ControlNet_Diffusers_SDXL_Config, ControlNet_Diffusers_SDXL_Config.get_tag()],
-        Annotated[ControlNet_Diffusers_FLUX_Config, ControlNet_Diffusers_FLUX_Config.get_tag()],
         # LoRA - LyCORIS format
-        # IMPORTANT: FLUX.2 must be checked BEFORE FLUX.1 because FLUX.2 has specific validation
-        # that will reject FLUX.1 models, but FLUX.1 validation may incorrectly match FLUX.2 models
-        Annotated[LoRA_LyCORIS_SD1_Config, LoRA_LyCORIS_SD1_Config.get_tag()],
-        Annotated[LoRA_LyCORIS_SD2_Config, LoRA_LyCORIS_SD2_Config.get_tag()],
-        Annotated[LoRA_LyCORIS_SDXL_Config, LoRA_LyCORIS_SDXL_Config.get_tag()],
         Annotated[LoRA_LyCORIS_Flux2_Config, LoRA_LyCORIS_Flux2_Config.get_tag()],
-        Annotated[LoRA_LyCORIS_FLUX_Config, LoRA_LyCORIS_FLUX_Config.get_tag()],
         Annotated[LoRA_LyCORIS_ZImage_Config, LoRA_LyCORIS_ZImage_Config.get_tag()],
         Annotated[LoRA_LyCORIS_Krea2_Config, LoRA_LyCORIS_Krea2_Config.get_tag()],
         Annotated[LoRA_LyCORIS_QwenImage_Config, LoRA_LyCORIS_QwenImage_Config.get_tag()],
@@ -366,20 +259,9 @@ AnyModelConfig = Annotated[
         # ``test_wan_lora_probe_independence.py``.
         Annotated[LoRA_LyCORIS_Wan_Config, LoRA_LyCORIS_Wan_Config.get_tag()],
         Annotated[LoRA_LyCORIS_Anima_Config, LoRA_LyCORIS_Anima_Config.get_tag()],
-        # LoRA - OMI format
-        Annotated[LoRA_OMI_SDXL_Config, LoRA_OMI_SDXL_Config.get_tag()],
-        Annotated[LoRA_OMI_FLUX_Config, LoRA_OMI_FLUX_Config.get_tag()],
         # LoRA - diffusers format
-        # IMPORTANT: FLUX.2 must be checked BEFORE FLUX.1 because FLUX.2 has specific validation
-        # that will reject FLUX.1 models, but FLUX.1 validation may incorrectly match FLUX.2 models
-        Annotated[LoRA_Diffusers_SD1_Config, LoRA_Diffusers_SD1_Config.get_tag()],
-        Annotated[LoRA_Diffusers_SD2_Config, LoRA_Diffusers_SD2_Config.get_tag()],
-        Annotated[LoRA_Diffusers_SDXL_Config, LoRA_Diffusers_SDXL_Config.get_tag()],
         Annotated[LoRA_Diffusers_Flux2_Config, LoRA_Diffusers_Flux2_Config.get_tag()],
-        Annotated[LoRA_Diffusers_FLUX_Config, LoRA_Diffusers_FLUX_Config.get_tag()],
         Annotated[LoRA_Diffusers_ZImage_Config, LoRA_Diffusers_ZImage_Config.get_tag()],
-        # ControlLoRA - diffusers format
-        Annotated[ControlLoRA_LyCORIS_FLUX_Config, ControlLoRA_LyCORIS_FLUX_Config.get_tag()],
         # T5 Encoder - all formats
         Annotated[T5Encoder_T5Encoder_Config, T5Encoder_T5Encoder_Config.get_tag()],
         Annotated[T5Encoder_BnBLLMint8_Config, T5Encoder_BnBLLMint8_Config.get_tag()],
@@ -408,33 +290,12 @@ AnyModelConfig = Annotated[
         Annotated[QwenVLEncoder_Checkpoint_Config, QwenVLEncoder_Checkpoint_Config.get_tag()],
         # Wan T5 Encoder (UMT5-XXL for Wan 2.2)
         Annotated[WanT5Encoder_WanT5Encoder_Config, WanT5Encoder_WanT5Encoder_Config.get_tag()],
-        # TI - file format
-        Annotated[TI_File_SD1_Config, TI_File_SD1_Config.get_tag()],
-        Annotated[TI_File_SD2_Config, TI_File_SD2_Config.get_tag()],
-        Annotated[TI_File_SDXL_Config, TI_File_SDXL_Config.get_tag()],
-        # TI - folder format
-        Annotated[TI_Folder_SD1_Config, TI_Folder_SD1_Config.get_tag()],
-        Annotated[TI_Folder_SD2_Config, TI_Folder_SD2_Config.get_tag()],
-        Annotated[TI_Folder_SDXL_Config, TI_Folder_SDXL_Config.get_tag()],
-        # IP Adapter - InvokeAI format
-        Annotated[IPAdapter_InvokeAI_SD1_Config, IPAdapter_InvokeAI_SD1_Config.get_tag()],
-        Annotated[IPAdapter_InvokeAI_SD2_Config, IPAdapter_InvokeAI_SD2_Config.get_tag()],
-        Annotated[IPAdapter_InvokeAI_SDXL_Config, IPAdapter_InvokeAI_SDXL_Config.get_tag()],
-        # IP Adapter - checkpoint format
-        Annotated[IPAdapter_Checkpoint_SD1_Config, IPAdapter_Checkpoint_SD1_Config.get_tag()],
-        Annotated[IPAdapter_Checkpoint_SD2_Config, IPAdapter_Checkpoint_SD2_Config.get_tag()],
-        Annotated[IPAdapter_Checkpoint_SDXL_Config, IPAdapter_Checkpoint_SDXL_Config.get_tag()],
-        Annotated[IPAdapter_Checkpoint_FLUX_Config, IPAdapter_Checkpoint_FLUX_Config.get_tag()],
-        # T2I Adapter - diffusers format
-        Annotated[T2IAdapter_Diffusers_SD1_Config, T2IAdapter_Diffusers_SD1_Config.get_tag()],
-        Annotated[T2IAdapter_Diffusers_SDXL_Config, T2IAdapter_Diffusers_SDXL_Config.get_tag()],
         # Misc models
         Annotated[Spandrel_Checkpoint_Config, Spandrel_Checkpoint_Config.get_tag()],
         Annotated[CLIPEmbed_Diffusers_G_Config, CLIPEmbed_Diffusers_G_Config.get_tag()],
         Annotated[CLIPEmbed_Diffusers_L_Config, CLIPEmbed_Diffusers_L_Config.get_tag()],
         Annotated[CLIPVision_Diffusers_Config, CLIPVision_Diffusers_Config.get_tag()],
         Annotated[SigLIP_Diffusers_Config, SigLIP_Diffusers_Config.get_tag()],
-        Annotated[FLUXRedux_Checkpoint_Config, FLUXRedux_Checkpoint_Config.get_tag()],
         Annotated[LlavaOnevision_Diffusers_Config, LlavaOnevision_Diffusers_Config.get_tag()],
         Annotated[TextLLM_Diffusers_Config, TextLLM_Diffusers_Config.get_tag()],
         Annotated[ExternalApiModelConfig, ExternalApiModelConfig.get_tag()],

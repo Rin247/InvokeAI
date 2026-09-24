@@ -70,8 +70,6 @@ from invokeai.backend.stable_diffusion.diffusion.conditioning_data import (
     Ideogram4ConditioningInfo,
     Krea2ConditioningInfo,
     QwenImageConditioningInfo,
-    SD3ConditioningInfo,
-    SDXLConditioningInfo,
     WanConditioningInfo,
     ZImageConditioningInfo,
 )
@@ -162,9 +160,7 @@ class ApiDependencies:
                 safe_globals=[
                     ConditioningFieldData,
                     BasicConditioningInfo,
-                    SDXLConditioningInfo,
                     FLUXConditioningInfo,
-                    SD3ConditioningInfo,
                     CogView4ConditioningInfo,
                     ZImageConditioningInfo,
                     ErnieImageConditioningInfo,

@@ -113,18 +113,6 @@ class TI_File_Config_Base(TI_Config_Base):
         return cls(**override_fields)
 
 
-class TI_File_SD1_Config(TI_File_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class TI_File_SD2_Config(TI_File_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
-
-
-class TI_File_SDXL_Config(TI_File_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
-
-
 class TI_Folder_Config_Base(TI_Config_Base):
     """Model config for textual inversion embeddings."""
 
@@ -144,13 +132,3 @@ class TI_Folder_Config_Base(TI_Config_Base):
         raise NotAMatchError("model does not look like a textual inversion embedding folder")
 
 
-class TI_Folder_SD1_Config(TI_Folder_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
-
-
-class TI_Folder_SD2_Config(TI_Folder_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
-
-
-class TI_Folder_SDXL_Config(TI_Folder_Config_Base, Config_Base):
-    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
