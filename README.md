@@ -58,9 +58,6 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 ### Model Support
 - SD 1.5
 - SD 2.0
-- SD 3.5 Medium
-- SD 3.5 Large
-- CogView 4
 - Z-Image Turbo
 - Z-Image Base
 - Krea 2 Turbo
@@ -71,11 +68,8 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 - Ideogram 4
 - ERNIE-Image
 - ERNIE-Image-Turbo
-- Nano Banana (API Only)
-- GPT Image (API Only)
-- Wan (API Only)
 
-> **Note:** SDXL, FLUX.1, FLUX.2, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
+> **Note:** SDXL, FLUX.1, FLUX.2, SD3.5, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
 
 ### Platform Support
 - Python 3.14 / 3.15 preview
