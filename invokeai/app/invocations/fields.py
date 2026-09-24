@@ -217,6 +217,10 @@ class FieldDescriptions:
     )
     num_1 = "The first number"
     num_2 = "The second number"
+    sdxl_aesthetic = "Aesthetic score for SDXL refiner"
+    flux_redux_conditioning = "Flux Redux conditioning tensor"
+    flux_kontext_conditioning = "Flux Kontext conditioning (reference image)"
+    text_llm_model = "Text LLM model to load"
     denoise_mask = "A mask of the region to apply the denoising process to. Values of 0.0 represent the regions to be fully denoised, and 1.0 represent the regions to be preserved."
     board = "The board to save the image to"
     image = "The image to process"
@@ -233,6 +237,9 @@ class FieldDescriptions:
         "Blending factor. 0.0 = use input A only, 1.0 = use input B only, 0.5 = 50% mix of input A and input B."
     )
     num_1 = "The first number"
+
+
+class ImageField(BaseModel):
     """An image primitive field"""
 
     image_name: str = Field(description="The name of the image")

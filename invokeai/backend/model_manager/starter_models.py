@@ -36,6 +36,8 @@ class StarterModelWithoutDependencies(BaseModel):
     # allows us to track what models a user has installed across name changes within starter models
     # if you update a starter model name, please add the old one to this list for that starter model
     previous_names: list[str] = []
+    quant_type: str | None = None
+    group_size: int | None = None
 
 
 class StarterModel(StarterModelWithoutDependencies):
@@ -49,6 +51,24 @@ class StarterModelBundle(BaseModel):
 
 
 # region CLIP Image Encoders
+
+# This is CLIP-ViT-H-14-laion2B-s32B-b79K
+ip_adapter_sd_image_encoder = StarterModel(
+    name="IP Adapter SD1.5 Image Encoder",
+    base=BaseModelType.Any,
+    source="InvokeAI/ip_adapter_sd_image_encoder",
+    description="IP Adapter SD Image Encoder",
+    type=ModelType.CLIPVision,
+)
+
+# This is CLIP-ViT-bigG-14-laion2B-39B-b160k
+ip_adapter_sdxl_image_encoder = StarterModel(
+    name="IP Adapter SDXL Image Encoder",
+    base=BaseModelType.Any,
+    source="InvokeAI/ip_adapter_sdxl_image_encoder",
+    description="IP Adapter SDXL Image Encoder",
+    type=ModelType.CLIPVision,
+)
 # Note: This model is installed from the same source as the CLIPEmbed model below. The model contains both the image
 # encoder and the text encoder, but we need separate model entries so that they get loaded correctly.
 clip_vit_l_image_encoder = StarterModel(
@@ -61,6 +81,59 @@ clip_vit_l_image_encoder = StarterModel(
 # endregion
 
 # region TextEncoders
+t5_base_encoder = StarterModel(
+    name="t5_base_encoder",
+    base=BaseModelType.Any,
+    source="InvokeAI/t5-v1_1-xxl::bfloat16",
+    description="T5-XXL text encoder (used in FLUX pipelines). ~9.5GB",
+    type=ModelType.T5Encoder,
+)
+
+t5_8b_quantized_encoder = StarterModel(
+    name="t5_bnb_int8_quantized_encoder",
+    base=BaseModelType.Any,
+    source="InvokeAI/t5-v1_1-xxl::bnb_llm_int8",
+    description="T5-XXL text encoder with bitsandbytes LLM.int8() quantization (used in FLUX pipelines). ~5GB",
+    type=ModelType.T5Encoder,
+    format=ModelFormat.BnbQuantizedLlmInt8b,
+)
+
+t5_gguf_q3_k_s_encoder = StarterModel(
+    name="t5_gguf_q3_k_s_encoder",
+    base=BaseModelType.Any,
+    source="https://huggingface.co/city96/t5-v1_1-xxl-encoder-gguf/resolve/main/t5-v1_1-xxl-encoder-Q3_K_S.gguf",
+    description="T5-XXL text encoder, GGUF Q3_K_S quantized (used in FLUX pipelines). Smallest size for low VRAM, lower quality. ~2.1GB",
+    type=ModelType.T5Encoder,
+    format=ModelFormat.GGUFQuantized,
+)
+
+t5_gguf_q6_k_encoder = StarterModel(
+    name="t5_gguf_q6_k_encoder",
+    base=BaseModelType.Any,
+    source="https://huggingface.co/city96/t5-v1_1-xxl-encoder-gguf/resolve/main/t5-v1_1-xxl-encoder-Q6_K.gguf",
+    description="T5-XXL text encoder, GGUF Q6_K quantized (used in FLUX pipelines). Near-lossless quality. ~3.9GB",
+    type=ModelType.T5Encoder,
+    format=ModelFormat.GGUFQuantized,
+)
+
+clip_l_encoder = StarterModel(
+    name="clip-vit-large-patch14",
+    base=BaseModelType.Any,
+    source="InvokeAI/clip-vit-large-patch14-text-encoder::bfloat16",
+    description="CLIP-L text encoder (used in FLUX pipelines). ~250MB",
+    type=ModelType.CLIPEmbed,
+)
+# endregion
+
+# region SigLIP
+siglip = StarterModel(
+    name="SigLIP - google/siglip-so400m-patch14-384",
+    base=BaseModelType.Any,
+    source="google/siglip-so400m-patch14-384",
+    description="A SigLIP model (used by FLUX Redux).",
+    type=ModelType.SigLIP,
+)
+# endregion
 
 # region PiD (Pixel Diffusion Decoder)
 # PiD's pretrained decoders condition on Gemma-2-2b-it caption embeddings (2304-dim). NVIDIA references the ungated
@@ -76,9 +149,11 @@ gemma2_2b_encoder = StarterModel(
 )
 
 # FLUX.2 Klein shares one 32-channel VAE across the 4B and 9B variants, so a single decoder per preset covers both.
-# The 128-channel packed latent is unambiguous, so no directory-name disambiguation
+# The 128-channel packed latent is unambiguous (unlike the 16ch FLUX/SD3 case), so no directory-name disambiguation
 # is needed for the config probe.
-# Qwen-Image uses a 16-channel latent. The config probe disambiguates via the checkpoint's
+# SD3 uses a 16-channel latent, architecturally identical to FLUX.1. The config probe disambiguates via the
+# checkpoint's directory name (`…official_sd3_distill…`); if the HF single-file download drops that name, the
+# explicit base=StableDiffusion3 override the installer sends is trusted instead (see pid_decoder.py::_validate_base).
 pid_decoder_sd3_2k = StarterModel(
     name="PiD Decoder SD3 (2K)",
     base=BaseModelType.StableDiffusion3,
@@ -172,8 +247,9 @@ cogview4 = StarterModel(
 qwen_image_vae = StarterModel(
     name="Qwen Image VAE",
     base=BaseModelType.QwenImage,
-    source="Qwen/Qwen-Image-2.1::vae/diffusion_pytorch_model.safetensors",
-    description="Qwen Image VAE (AutoencoderKLQwenImage), for use with GGUF transformers to avoid downloading the full Diffusers pipeline. (~250MB)",
+    source="Qwen/Qwen-Image-Edit-2511::vae/diffusion_pytorch_model.safetensors",
+    description="Qwen Image VAE (AutoencoderKLQwenImage), shared between the Edit and txt2img variants. "
+    "Use with GGUF transformers to avoid downloading the full ~40GB Diffusers pipeline. (~250MB)",
     type=ModelType.VAE,
     format=ModelFormat.Checkpoint,
 )
@@ -199,58 +275,167 @@ qwen_vl_encoder_diffusers = StarterModel(
 )
 # endregion
 
-# region Qwen Image 2.1 (txt2img)
-qwen_image_21 = StarterModel(
-    name="Qwen-Image-2.1",
+# region Qwen Image Edit
+qwen_image_edit = StarterModel(
+    name="Qwen Image Edit 2511",
     base=BaseModelType.QwenImage,
-    source="Qwen/Qwen-Image-2.1",
-    description="Qwen-Image-2.1 unified text-to-image and image editing model (~14GB transformer + ~250MB VAE + text encoder). Supports RGBA generation.",
+    source="Qwen/Qwen-Image-Edit-2511",
+    description="Qwen Image Edit 2511 full diffusers model. Supports text-guided image editing with multiple reference images. (~40GB)",
     type=ModelType.Main,
-    variant=QwenImageVariantType.V2_1,
+    variant=QwenImageVariantType.Edit,
 )
 
-qwen_image_21_gguf_q4_k_m = StarterModel(
-    name="Qwen-Image-2.1 (Q4_K_M)",
+qwen_image_edit_gguf_q4_k_m = StarterModel(
+    name="Qwen Image Edit 2511 (Q4_K_M)",
     base=BaseModelType.QwenImage,
-    source="https://huggingface.co/unsloth/Qwen-Image-2.1-GGUF/resolve/main/qwen-image-2.1-Q4_K_M.gguf",
-    description="Qwen-Image-2.1 - Q4_K_M quantized transformer. Good quality/size balance. (~4.6GB)",
+    source="https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q4_K_M.gguf",
+    description="Qwen Image Edit 2511 - Q4_K_M quantized transformer. Good quality/size balance. (~13GB)",
     type=ModelType.Main,
     format=ModelFormat.GGUFQuantized,
-    variant=QwenImageVariantType.V2_1,
-    dependencies=[qwen_image_vae, qwen3_vl_encoder_4b],
+    variant=QwenImageVariantType.Edit,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
 )
 
-qwen_image_21_gguf_q2_k = StarterModel(
-    name="Qwen-Image-2.1 (Q2_K)",
+qwen_image_edit_gguf_q2_k = StarterModel(
+    name="Qwen Image Edit 2511 (Q2_K)",
     base=BaseModelType.QwenImage,
-    source="https://huggingface.co/unsloth/Qwen-Image-2.1-GGUF/resolve/main/qwen-image-2.1-Q2_K.gguf",
-    description="Qwen-Image-2.1 - Q2_K heavily quantized transformer. Smallest size, lower quality. (~3GB)",
+    source="https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q2_K.gguf",
+    description="Qwen Image Edit 2511 - Q2_K heavily quantized transformer. Smallest size, lower quality. (~7.5GB)",
     type=ModelType.Main,
     format=ModelFormat.GGUFQuantized,
-    variant=QwenImageVariantType.V2_1,
-    dependencies=[qwen_image_vae, qwen3_vl_encoder_4b],
+    variant=QwenImageVariantType.Edit,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
 )
 
-qwen_image_21_gguf_q6_k = StarterModel(
-    name="Qwen-Image-2.1 (Q6_K)",
+qwen_image_edit_gguf_q6_k = StarterModel(
+    name="Qwen Image Edit 2511 (Q6_K)",
     base=BaseModelType.QwenImage,
-    source="https://huggingface.co/unsloth/Qwen-Image-2.1-GGUF/resolve/main/qwen-image-2.1-Q6_K.gguf",
-    description="Qwen-Image-2.1 - Q6_K quantized transformer. Near-lossless quality. (~5.9GB)",
+    source="https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q6_K.gguf",
+    description="Qwen Image Edit 2511 - Q6_K quantized transformer. Near-lossless quality. (~17GB)",
     type=ModelType.Main,
     format=ModelFormat.GGUFQuantized,
-    variant=QwenImageVariantType.V2_1,
-    dependencies=[qwen_image_vae, qwen3_vl_encoder_4b],
+    variant=QwenImageVariantType.Edit,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
 )
 
-qwen_image_21_gguf_q8_0 = StarterModel(
-    name="Qwen-Image-2.1 (Q8_0)",
+qwen_image_edit_gguf_q8_0 = StarterModel(
+    name="Qwen Image Edit 2511 (Q8_0)",
     base=BaseModelType.QwenImage,
-    source="https://huggingface.co/unsloth/Qwen-Image-2.1-GGUF/resolve/main/qwen-image-2.1-Q8_0.gguf",
-    description="Qwen-Image-2.1 - Q8_0 quantized transformer. Highest quality quantization. (~7.6GB)",
+    source="https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q8_0.gguf",
+    description="Qwen Image Edit 2511 - Q8_0 quantized transformer. Highest quality quantization. (~22GB)",
     type=ModelType.Main,
     format=ModelFormat.GGUFQuantized,
-    variant=QwenImageVariantType.V2_1,
-    dependencies=[qwen_image_vae, qwen3_vl_encoder_4b],
+    variant=QwenImageVariantType.Edit,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
+)
+
+qwen_image_edit_lightning_4step = StarterModel(
+    name="Qwen Image Edit Lightning (4-step, bf16)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+    description="Lightning distillation LoRA for Qwen Image Edit — enables generation in just 4 steps. "
+    "Settings: Steps=4, CFG=1, Shift Override=3.",
+    type=ModelType.LoRA,
+)
+
+qwen_image_edit_lightning_8step = StarterModel(
+    name="Qwen Image Edit Lightning (8-step, bf16)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors",
+    description="Lightning distillation LoRA for Qwen Image Edit — enables generation in 8 steps with better quality. "
+    "Settings: Steps=8, CFG=1, Shift Override=3.",
+    type=ModelType.LoRA,
+)
+
+# Qwen Image (txt2img)
+qwen_image = StarterModel(
+    name="Qwen Image 2512",
+    base=BaseModelType.QwenImage,
+    source="Qwen/Qwen-Image-2512",
+    description="Qwen Image 2512 full diffusers model. High-quality text-to-image generation. (~40GB)",
+    type=ModelType.Main,
+)
+
+qwen_image_gguf_q4_k_m = StarterModel(
+    name="Qwen Image 2512 (Q4_K_M)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/unsloth/Qwen-Image-2512-GGUF/resolve/main/qwen-image-2512-Q4_K_M.gguf",
+    description="Qwen Image 2512 - Q4_K_M quantized transformer. Good quality/size balance. (~13GB)",
+    type=ModelType.Main,
+    format=ModelFormat.GGUFQuantized,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
+)
+
+qwen_image_gguf_q2_k = StarterModel(
+    name="Qwen Image 2512 (Q2_K)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/unsloth/Qwen-Image-2512-GGUF/resolve/main/qwen-image-2512-Q2_K.gguf",
+    description="Qwen Image 2512 - Q2_K heavily quantized transformer. Smallest size, lower quality. (~7.5GB)",
+    type=ModelType.Main,
+    format=ModelFormat.GGUFQuantized,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
+)
+
+qwen_image_gguf_q6_k = StarterModel(
+    name="Qwen Image 2512 (Q6_K)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/unsloth/Qwen-Image-2512-GGUF/resolve/main/qwen-image-2512-Q6_K.gguf",
+    description="Qwen Image 2512 - Q6_K quantized transformer. Near-lossless quality. (~17GB)",
+    type=ModelType.Main,
+    format=ModelFormat.GGUFQuantized,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
+)
+
+qwen_image_gguf_q8_0 = StarterModel(
+    name="Qwen Image 2512 (Q8_0)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/unsloth/Qwen-Image-2512-GGUF/resolve/main/qwen-image-2512-Q8_0.gguf",
+    description="Qwen Image 2512 - Q8_0 quantized transformer. Highest quality quantization. (~22GB)",
+    type=ModelType.Main,
+    format=ModelFormat.GGUFQuantized,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
+)
+
+qwen_image_lightning_4step = StarterModel(
+    name="Qwen Image Lightning (4-step, V2.0, bf16)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-4steps-V2.0-bf16.safetensors",
+    description="Lightning distillation LoRA for Qwen Image — enables generation in just 4 steps. "
+    "Settings: Steps=4, CFG=1, Shift Override=3.",
+    type=ModelType.LoRA,
+)
+
+qwen_image_lightning_8step = StarterModel(
+    name="Qwen Image Lightning (8-step, V2.0, bf16)",
+    base=BaseModelType.QwenImage,
+    source="https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-8steps-V2.0-bf16.safetensors",
+    description="Lightning distillation LoRA for Qwen Image — enables generation in 8 steps with better quality. "
+    "Settings: Steps=8, CFG=1, Shift Override=3.",
+    type=ModelType.LoRA,
+)
+
+qwen_image_torchao_int4 = StarterModel(
+    name="Qwen Image 2512 (TorchAO INT4)",
+    base=BaseModelType.QwenImage,
+    source="Qwen/Qwen-Image-2512",
+    description="Qwen Image 2512 - TorchAO INT4 weight-only quantized transformer. Runtime quantization at load time. (~10GB)",
+    type=ModelType.Main,
+    format=ModelFormat.TorchAOQuantized,
+    quant_type="int4_weight_only",
+    group_size=128,
+)
+
+qwen_image_edit_torchao_int4 = StarterModel(
+    name="Qwen Image Edit 2511 (TorchAO INT4)",
+    base=BaseModelType.QwenImage,
+    source="Qwen/Qwen-Image-Edit-2511",
+    description="Qwen Image Edit 2511 - TorchAO INT4 weight-only quantized transformer. Runtime quantization at load time. (~10GB)",
+    type=ModelType.Main,
+    format=ModelFormat.TorchAOQuantized,
+    variant=QwenImageVariantType.Edit,
+    quant_type="int4_weight_only",
+    group_size=128,
+    dependencies=[qwen_image_vae, qwen_vl_encoder_fp8],
 )
 # endregion
 
@@ -1249,8 +1434,6 @@ ideogram_4_fp8 = StarterModel(
 # List of starter models, displayed on the frontend.
 # The order/sort of this list is not changed by the frontend - set it how you want it here.
 STARTER_MODELS: list[StarterModel] = [
-    sd35_medium,
-    sd35_large,
     ideogram_4_nf4,
     ideogram_4_fp8,
     realesrgan_x4,
@@ -1271,11 +1454,22 @@ STARTER_MODELS: list[StarterModel] = [
     qwen_image_vae,
     qwen_vl_encoder_fp8,
     qwen_vl_encoder_diffusers,
-    qwen_image_21,
-    qwen_image_21_gguf_q2_k,
-    qwen_image_21_gguf_q4_k_m,
-    qwen_image_21_gguf_q6_k,
-    qwen_image_21_gguf_q8_0,
+    qwen_image_edit,
+    qwen_image_edit_gguf_q2_k,
+    qwen_image_edit_gguf_q4_k_m,
+    qwen_image_edit_gguf_q6_k,
+    qwen_image_edit_gguf_q8_0,
+    qwen_image_edit_lightning_4step,
+    qwen_image_edit_lightning_8step,
+    qwen_image,
+    qwen_image_gguf_q2_k,
+    qwen_image_gguf_q4_k_m,
+    qwen_image_gguf_q6_k,
+    qwen_image_gguf_q8_0,
+    qwen_image_lightning_4step,
+    qwen_image_lightning_8step,
+    qwen_image_torchao_int4,
+    qwen_image_edit_torchao_int4,
     z_image_turbo,
     z_image_turbo_quantized,
     z_image_turbo_q8,
@@ -1358,9 +1552,19 @@ ernie_image_bundle: list[StarterModel] = [
 
 qwen_image_bundle: list[StarterModel] = [
     qwen_image_vae,
-    qwen_image_21,
-    qwen_image_21_gguf_q4_k_m,
-    qwen_image_21_gguf_q8_0,
+    qwen_vl_encoder_fp8,
+    qwen_image_edit,
+    qwen_image_edit_gguf_q4_k_m,
+    qwen_image_edit_gguf_q8_0,
+    qwen_image_edit_lightning_4step,
+    qwen_image_edit_lightning_8step,
+    qwen_image,
+    qwen_image_gguf_q4_k_m,
+    qwen_image_gguf_q8_0,
+    qwen_image_lightning_4step,
+    qwen_image_lightning_8step,
+    qwen_image_torchao_int4,
+    qwen_image_edit_torchao_int4,
 ]
 
 anima_bundle: list[StarterModel] = [
@@ -1420,5 +1624,3 @@ STARTER_BUNDLES: dict[str, StarterModelBundle] = {
     "wan_i2v": StarterModelBundle(name="Wan 2.2 Image-to-Video", models=wan_i2v_bundle),
     BaseModelType.Ideogram4: StarterModelBundle(name="Ideogram 4", models=ideogram_bundle),
 }
-
-assert len(STARTER_MODELS) == len({m.source for m in STARTER_MODELS}), "Duplicate starter models"

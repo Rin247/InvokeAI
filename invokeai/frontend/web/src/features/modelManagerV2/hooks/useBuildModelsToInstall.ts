@@ -34,15 +34,26 @@ export const useBuildModelInstallArg = () => {
   const buildModelInstallArg = useCallback((starterModel: StarterModel): ModelInstallArg => {
     const { name, base, type, source, description, format, variant } = starterModel;
 
+    const config: Record<string, unknown> = {
+      name,
+      base,
+      type,
+      description,
+      format,
+      variant,
+    };
+
+    const quantType = (starterModel as StarterModel & { quant_type?: string | null }).quant_type;
+    const groupSize = (starterModel as StarterModel & { group_size?: number | null }).group_size;
+    if (quantType !== undefined && quantType !== null) {
+      (config as Record<string, unknown>).quant_type = quantType;
+    }
+    if (groupSize !== undefined && groupSize !== null) {
+      (config as Record<string, unknown>).group_size = groupSize;
+    }
+
     return {
-      config: {
-        name,
-        base,
-        type,
-        description,
-        format,
-        variant,
-      },
+      config: config as ModelInstallArg['config'],
       source,
     };
   }, []);

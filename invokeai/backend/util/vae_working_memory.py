@@ -77,7 +77,7 @@ def estimate_vae_working_memory_cogview4(
     return int(working_memory)
 
 
-def estimate_vae_working_memory_cogview4(
+def estimate_vae_working_memory_anima(
     operation: Literal["encode", "decode"],
     image_tensor: torch.Tensor,
     vae: AutoencoderKLWan,
@@ -246,6 +246,61 @@ def estimate_vae_working_memory_qwen_image(
         working_memory += image_copies * 3 * h * w * element_size
     else:
         working_memory = h * w * element_size * scaling_constant
+
+    return int(working_memory)
+
+
+def estimate_vae_working_memory_sd15_sdxl(
+    operation: Literal["encode", "decode"],
+    image_tensor: torch.Tensor,
+    vae: AutoencoderKL,
+    tile_size: int | None = None,
+) -> int:
+    """Estimate the working memory required to encode or decode the given tensor."""
+    element_size = next(vae.parameters()).element_size()
+    scaling_constant = 2200 if operation == "decode" else 1100
+
+    if tile_size is not None and tile_size > 0:
+        h = tile_size
+        w = tile_size
+        working_memory = h * w * element_size * scaling_constant * 1.25
+    else:
+        latent_scale_factor_for_operation = LATENT_SCALE_FACTOR if operation == "decode" else 1
+        h = latent_scale_factor_for_operation * image_tensor.shape[-2]
+        w = latent_scale_factor_for_operation * image_tensor.shape[-1]
+        working_memory = h * w * element_size * scaling_constant
+
+    return int(working_memory)
+
+
+def estimate_vae_working_memory_flux2(
+    operation: Literal["encode", "decode"],
+    image_tensor: torch.Tensor,
+    vae: AutoencoderKL,
+    tile_size: int | None = None,
+) -> int:
+    """Estimate the working memory required to encode or decode with the FLUX VAE."""
+    return estimate_vae_working_memory_flux(operation, image_tensor, vae, tile_size)
+
+
+def estimate_vae_working_memory_flux(
+    operation: Literal["encode", "decode"],
+    image_tensor: torch.Tensor,
+    vae: AutoencoderKL,
+    tile_size: int | None = None,
+) -> int:
+    """Estimate the working memory required by the invocation in bytes."""
+    latent_scale_factor_for_operation = LATENT_SCALE_FACTOR if operation == "decode" else 1
+
+    h = latent_scale_factor_for_operation * image_tensor.shape[-2]
+    w = latent_scale_factor_for_operation * image_tensor.shape[-1]
+    element_size = next(vae.parameters()).element_size()
+
+    scaling_constant = 2200 if operation == "decode" else 1100
+    working_memory = h * w * element_size * scaling_constant
+
+    if tile_size is not None and tile_size > 0:
+        working_memory = tile_size * tile_size * element_size * scaling_constant * 1.25
 
     return int(working_memory)
 

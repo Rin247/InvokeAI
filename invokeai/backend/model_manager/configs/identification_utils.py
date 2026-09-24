@@ -146,6 +146,8 @@ def raise_for_override_fields(candidate_config_class: type[BaseModel], override_
         NotAMatch if any override field is invalid for the config class.
     """
     for field_name, override_value in override_fields.items():
+        if override_value is None:
+            continue
         if field_name not in candidate_config_class.model_fields:
             raise NotAMatchError(f"unknown override field: {field_name}")
         try:

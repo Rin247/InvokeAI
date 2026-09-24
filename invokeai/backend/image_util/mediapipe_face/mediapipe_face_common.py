@@ -1,50 +1,71 @@
 from typing import Mapping
 
-import mediapipe as mp
 import numpy
 
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
-mp_face_detection = mp.solutions.face_detection  # Only for counting faces.
-mp_face_mesh = mp.solutions.face_mesh
-mp_face_connections = mp.solutions.face_mesh_connections.FACEMESH_TESSELATION
-mp_hand_connections = mp.solutions.hands_connections.HAND_CONNECTIONS
-mp_body_connections = mp.solutions.pose_connections.POSE_CONNECTIONS
+try:
+    import mediapipe as mp
 
-DrawingSpec = mp.solutions.drawing_styles.DrawingSpec
-PoseLandmark = mp.solutions.drawing_styles.PoseLandmark
+    _MEDIAPIPE_AVAILABLE = True
+    mp_drawing = mp.solutions.drawing_utils
+    mp_drawing_styles = mp.solutions.drawing_styles
+    mp_face_detection = mp.solutions.face_detection  # Only for counting faces.
+    mp_face_mesh = mp.solutions.face_mesh
+    mp_face_connections = mp.solutions.face_mesh_connections.FACEMESH_TESSELATION
+    mp_hand_connections = mp.solutions.hands_connections.HAND_CONNECTIONS
+    mp_body_connections = mp.solutions.pose_connections.POSE_CONNECTIONS
 
-min_face_size_pixels: int = 64
-f_thick = 2
-f_rad = 1
-right_iris_draw = DrawingSpec(color=(10, 200, 250), thickness=f_thick, circle_radius=f_rad)
-right_eye_draw = DrawingSpec(color=(10, 200, 180), thickness=f_thick, circle_radius=f_rad)
-right_eyebrow_draw = DrawingSpec(color=(10, 220, 180), thickness=f_thick, circle_radius=f_rad)
-left_iris_draw = DrawingSpec(color=(250, 200, 10), thickness=f_thick, circle_radius=f_rad)
-left_eye_draw = DrawingSpec(color=(180, 200, 10), thickness=f_thick, circle_radius=f_rad)
-left_eyebrow_draw = DrawingSpec(color=(180, 220, 10), thickness=f_thick, circle_radius=f_rad)
-mouth_draw = DrawingSpec(color=(10, 180, 10), thickness=f_thick, circle_radius=f_rad)
-head_draw = DrawingSpec(color=(10, 200, 10), thickness=f_thick, circle_radius=f_rad)
+    DrawingSpec = mp.solutions.drawing_styles.DrawingSpec
+    PoseLandmark = mp.solutions.drawing_styles.PoseLandmark
+except Exception:
+    _MEDIAPIPE_AVAILABLE = False
+    mp_drawing = None  # type: ignore[assignment]
+    mp_drawing_styles = None  # type: ignore[assignment]
+    mp_face_detection = None  # type: ignore[assignment]
+    mp_face_mesh = None  # type: ignore[assignment]
+    mp_face_connections = None  # type: ignore[assignment]
+    mp_hand_connections = None  # type: ignore[assignment]
+    mp_body_connections = None  # type: ignore[assignment]
+    DrawingSpec = None  # type: ignore[assignment,misc]
+    PoseLandmark = None  # type: ignore[assignment,misc]
 
-# mp_face_mesh.FACEMESH_CONTOURS has all the items we care about.
-face_connection_spec = {}
-for edge in mp_face_mesh.FACEMESH_FACE_OVAL:
-    face_connection_spec[edge] = head_draw
-for edge in mp_face_mesh.FACEMESH_LEFT_EYE:
-    face_connection_spec[edge] = left_eye_draw
-for edge in mp_face_mesh.FACEMESH_LEFT_EYEBROW:
-    face_connection_spec[edge] = left_eyebrow_draw
-# for edge in mp_face_mesh.FACEMESH_LEFT_IRIS:
-#    face_connection_spec[edge] = left_iris_draw
-for edge in mp_face_mesh.FACEMESH_RIGHT_EYE:
-    face_connection_spec[edge] = right_eye_draw
-for edge in mp_face_mesh.FACEMESH_RIGHT_EYEBROW:
-    face_connection_spec[edge] = right_eyebrow_draw
-# for edge in mp_face_mesh.FACEMESH_RIGHT_IRIS:
-#    face_connection_spec[edge] = right_iris_draw
-for edge in mp_face_mesh.FACEMESH_LIPS:
-    face_connection_spec[edge] = mouth_draw
-iris_landmark_spec = {468: right_iris_draw, 473: left_iris_draw}
+if _MEDIAPIPE_AVAILABLE:
+    min_face_size_pixels: int = 64
+    f_thick = 2
+    f_rad = 1
+    right_iris_draw = DrawingSpec(color=(10, 200, 250), thickness=f_thick, circle_radius=f_rad)
+    right_eye_draw = DrawingSpec(color=(10, 200, 180), thickness=f_thick, circle_radius=f_rad)
+    right_eyebrow_draw = DrawingSpec(color=(10, 220, 180), thickness=f_thick, circle_radius=f_rad)
+    left_iris_draw = DrawingSpec(color=(250, 200, 10), thickness=f_thick, circle_radius=f_rad)
+    left_eye_draw = DrawingSpec(color=(180, 200, 10), thickness=f_thick, circle_radius=f_rad)
+    left_eyebrow_draw = DrawingSpec(color=(180, 220, 10), thickness=f_thick, circle_radius=f_rad)
+    mouth_draw = DrawingSpec(color=(10, 180, 10), thickness=f_thick, circle_radius=f_rad)
+    head_draw = DrawingSpec(color=(10, 200, 10), thickness=f_thick, circle_radius=f_rad)
+
+    # mp_face_mesh.FACEMESH_CONTOURS has all the items we care about.
+    face_connection_spec = {}
+    for edge in mp_face_mesh.FACEMESH_FACE_OVAL:
+        face_connection_spec[edge] = head_draw
+    for edge in mp_face_mesh.FACEMESH_LEFT_EYE:
+        face_connection_spec[edge] = left_eye_draw
+    for edge in mp_face_mesh.FACEMESH_LEFT_EYEBROW:
+        face_connection_spec[edge] = left_eyebrow_draw
+    # for edge in mp_face_mesh.FACEMESH_LEFT_IRIS:
+    #    face_connection_spec[edge] = left_iris_draw
+    for edge in mp_face_mesh.FACEMESH_RIGHT_EYE:
+        face_connection_spec[edge] = right_eye_draw
+    for edge in mp_face_mesh.FACEMESH_RIGHT_EYEBROW:
+        face_connection_spec[edge] = right_eyebrow_draw
+    # for edge in mp_face_mesh.FACEMESH_RIGHT_IRIS:
+    #    face_connection_spec[edge] = right_iris_draw
+    for edge in mp_face_mesh.FACEMESH_LIPS:
+        face_connection_spec[edge] = mouth_draw
+    iris_landmark_spec = {468: right_iris_draw, 473: left_iris_draw}
+else:
+    min_face_size_pixels = 64
+    f_thick = 2
+    f_rad = 1
+    face_connection_spec = {}
+    iris_landmark_spec = {}
 
 
 def draw_pupils(image, landmark_list, drawing_spec, halfwidth: int = 2):

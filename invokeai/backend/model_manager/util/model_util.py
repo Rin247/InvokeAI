@@ -182,3 +182,20 @@ def get_clip_variant_type(location: str) -> Optional[ClipVariantType]:
                     return ClipVariantType.L
     except Exception:
         return ClipVariantType.L
+
+
+def convert_bundle_to_flux_transformer_checkpoint(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    """Convert a bundled FLUX transformer checkpoint to a standalone transformer checkpoint.
+
+    Some checkpoints store the transformer under the ``model.diffusion_model.`` prefix,
+    typically when bundled with other components. This strips that prefix so the state
+    dict can be loaded directly into a ``Flux`` transformer module.
+    """
+    if not state_dict:
+        return state_dict
+
+    prefix = "model.diffusion_model."
+    if not any(key.startswith(prefix) for key in state_dict):
+        return state_dict
+
+    return {key[len(prefix) :]: value for key, value in state_dict.items() if key.startswith(prefix)}

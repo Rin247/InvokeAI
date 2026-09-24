@@ -43,9 +43,9 @@ pipeline, no BnB install.
 ### Implemented
 
 - **`ModelFormat.TorchAOQuantized`** added to `taxonomy.py`
-- **Config classes** added to `configs/main.py`:
+- **Config classes** in `configs/main.py`:
   - `Main_TorchAO_Flux_Config` — FLUX.1 single-file checkpoints
-  - `Main_TorchAO_Flux2_Config` — FLUX.2 single-file checkpoints (Klein, etc.)
+  - `Main_TorchAO_Flux2_Config` — FLUX.2 single-file checkpoints
   - `Main_TorchAO_QwenImage_Config` — Qwen Image single-file checkpoints
 - **Config registration** in `configs/factory.py`
 - **Loader** in `model_loaders/torchao.py`:
@@ -55,30 +55,15 @@ pipeline, no BnB install.
 - **FP8 exclusion** in `load_default.py` (`_QUANTIZED_MODEL_FORMATS` includes `torchao_quantized`)
 - **TorchAO WIP doc** added (`docs/src/content/docs/configuration/torchao-quantization.mdx`)
 
-### Remaining work
+### Blocked / Remaining work
 
-1. **Starter models.** No TorchAO-quantized starter models are defined yet. Once the format
-   is stable, starter entries should be added to `starter_models.py` pointing at full-precision
-   checkpoints with `quant_type` / `group_size` overrides, so users can install and quantize
-   in one step.
+1. **Cache coherence.** The model cache keys by source + hash. TorchAO-quantized weights produce a different runtime module than the full-precision source, but the state dict keys diverge after quantization. The cache must key on quantization config (`format + quant_type + group_size`), not just the checkpoint hash.
 
-2. **Cache coherence.** The model cache keys by source + hash. TorchAO-quantized weights
-   produce a different runtime module than the full-precision source, but the state dict
-   keys diverge after quantization. The cache must key on quantization config
-   (`format + quant_type + group_size`), not just the checkpoint hash.
+2. **State-dict round-trip.** A TorchAO-quantized model cannot be saved through InvokeAI's normal checkpoint pipeline because `state_dict()` returns quantized tensor wrappers, not plain `torch.Tensor`. If the cache evicts and reloads, it must re-quantize from the original full-precision source — which means the original must be retained.
 
-3. **State-dict round-trip.** A TorchAO-quantized model cannot be saved through InvokeAI's
-   normal checkpoint pipeline because `state_dict()` returns quantized tensor wrappers, not
-   plain `torch.Tensor`. If the cache evicts and reloads, it must re-quantize from the
-   original full-precision source — which means the original must be retained.
+3. **Per-architecture tuning.** The current loader reuses the existing single-file checkpoint loader for each architecture and applies TorchAO on top. This works as a proof of concept but needs per-architecture validation: which layers to skip (norm, embed, proj_out), what group sizes are stable, and whether INT8 is a better default for some models.
 
-4. **Per-architecture tuning.** The current loader reuses the existing single-file checkpoint
-   loader for each architecture and applies TorchAO on top. This works as a proof of concept
-   but needs per-architecture validation: which layers to skip (norm, embed, proj_out),
-   what group sizes are stable, and whether INT8 is a better default for some models.
-
-5. **Kernel support.** INT4 matmul requires recent PyTorch/CUDA. The loader should detect
-   unsupported hardware and either fall back to INT8 or reject the install with a clear error.
+4. **Kernel support.** Added `_check_quantization_kernel_support()` to `model_loaders/torchao.py`. INT4 requires CUDA compute capability >= 7.0; FP8 requires >= 8.9; CPU/MPS are rejected for INT4/FP8 with a clear error. Remaining decision: should InvokeAI fall back to INT8 on unsupported hardware, or reject the install outright?
 
 ## Planned design
 
@@ -105,12 +90,14 @@ class Main_TorchAO_Flux_Config(Checkpoint_Config_Base, Main_Config_Base, Config_
     variant: FluxVariantType = Field()
 ```
 
+Equivalent configs exist for `Flux2` and `QwenImage`.
+
 ### Loader flow
 
 ```
 from_model_on_disk()  →  validate full-precision checkpoint exists, reject already-quantized
         ↓
-_load_model()         →  delegate to existing checkpoint loader (Flux, Flux2, Qwen Image)
+_load_model()         →  load full-precision weights into model
         ↓
 _apply_torchao()      →  ao.quantize_(model, quant_type=..., group_size=...)
         ↓
@@ -138,7 +125,7 @@ These are distinct cache entries. Evicting one does not affect the other.
 | `configs/factory.py` | ✅ Done | Registered new configs in `AnyModelConfig` union |
 | `model_loaders/torchao.py` | ✅ Done | New loaders: `TorchAOFluxLoader`, `TorchAOFlux2Loader`, `TorchAOQwenImageLoader` |
 | `load_default.py` | ✅ Done | Added `torchao_quantized` to `_QUANTIZED_MODEL_FORMATS` |
-| `starter_models.py` | ⏳ TODO | Add TorchAO starter model entries with `quant_type` / `group_size` overrides |
+| `starter_models.py` | ✅ Done | Added TorchAO starter models; `raise_for_override_fields` now skips `None` overrides |
 | Model cache | ⏳ TODO | Key on quantization config, not just source+hash; retain original checkpoint path for re-quantization after eviction |
 
 ## Open questions
@@ -146,9 +133,10 @@ These are distinct cache entries. Evicting one does not affect the other.
 - **Granularity.** Per-group INT4 (group_size=128) is the TorchAO default and gives the
   best quality/size trade-off. Should InvokeAI expose group size to users, or fix it per
   architecture?
-- **Kernel support.** INT4 matmul requires `torch.ops.aten.neg_attention` or equivalent,
-  which is only available on CUDA with recent PyTorch builds. Should InvokeAI fall back to
-  INT8 on unsupported hardware, or reject the install outright?
+- **Kernel support.** Added hardware detection in `model_loaders/torchao.py`. INT4 requires
+  CUDA compute capability >= 7.0; FP8 requires >= 8.9; CPU/MPS are rejected for INT4/FP8.
+  Remaining decision: should InvokeAI fall back to INT8 on unsupported hardware, or reject
+  the install outright?
 - **Quality testing.** TorchAO INT4 on FLUX-class models is usable but not lossless. The
   team needs a benchmark suite (FID, CLIP score, prompt adherence) before enabling it for
   general use.
@@ -160,8 +148,9 @@ These are distinct cache entries. Evicting one does not affect the other.
 
 If you want to pick this up:
 
-1. Start with FLUX.1 (the loader already delegates to `FluxCheckpointModel`).
-2. Get `ao.quantize_()` producing a working model in a standalone script first.
-3. Add starter model entries in `starter_models.py` for the full-precision source with
-   TorchAO overrides.
+1. Add starter model entries in `starter_models.py` for the full-precision source with
+   TorchAO overrides; resolve the `StarterModelWithoutDependencies` /
+   `raise_for_override_fields` constraint.
+2. Start with FLUX.1 (the loader already delegates to `FluxCheckpointModel`).
+3. Get `ao.quantize_()` producing a working model in a standalone script first.
 4. The cache-key change is the hardest part and should be reviewed by a core maintainer.

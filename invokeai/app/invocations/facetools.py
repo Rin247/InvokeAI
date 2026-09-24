@@ -5,7 +5,14 @@ from typing import Optional, TypedDict
 
 import cv2
 import numpy as np
-from mediapipe.python.solutions.face_mesh import FaceMesh  # type: ignore[import]
+
+try:
+    from mediapipe.python.solutions.face_mesh import FaceMesh  # type: ignore[import]
+    _MEDIAPIPE_AVAILABLE = True
+except Exception:
+    _MEDIAPIPE_AVAILABLE = False
+    FaceMesh = None  # type: ignore[misc,assignment]
+
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 from PIL.Image import Image as ImageType
 from pydantic import field_validator

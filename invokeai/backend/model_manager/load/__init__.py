@@ -12,7 +12,7 @@ from invokeai.backend.model_manager.load.model_cache.model_cache import ModelCac
 from invokeai.backend.model_manager.load.model_loader_registry import ModelLoaderRegistry, ModelLoaderRegistryBase
 
 # This registers the subclasses that implement loaders of specific model types
-loaders = [x.stem for x in Path(Path(__file__).parent, "model_loaders").glob("*.py") if x.stem != "__init__"]
+loaders = [x.stem for x in Path(Path(__file__).parent, "model_loaders").glob("*.py") if x.stem != "__init__" and x.stem != "torchao"]
 for module in loaders:
     import_module(f"{__package__}.model_loaders.{module}")
 

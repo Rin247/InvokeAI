@@ -1043,7 +1043,11 @@ class ModelCache:
             )
 
         # Wrap model.
-        if isinstance(model, torch.nn.Module) and supports_partial_loading and self._enable_partial_loading:
+        # Some runtime-quantized models (e.g. TorchAO) produce non-standard state-dict
+        # entries that cannot be shared through `SharedCpuWeightsStore`. Detect them via a
+        # sentinel attribute and fall back to a non-sharing wrapper.
+        skip_shared_weights = isinstance(model, torch.nn.Module) and getattr(model, "_invoke_skip_shared_weights", False)
+        if isinstance(model, torch.nn.Module) and supports_partial_loading and self._enable_partial_loading and not skip_shared_weights:
             wrapped_model = CachedModelWithPartialLoad(
                 model,
                 effective_execution_device,
@@ -1057,8 +1061,8 @@ class ModelCache:
                 effective_execution_device,
                 size,
                 keep_ram_copy=keep_ram_copy,
-                shared_store=self._shared_cpu_weights,
-                cache_key=key,
+                shared_store=self._shared_cpu_weights if not skip_shared_weights else None,
+                cache_key=key if not skip_shared_weights else None,
             )
 
         # awaiting_first_use protects an unclaimed new entry from the asynchronous eviction paths

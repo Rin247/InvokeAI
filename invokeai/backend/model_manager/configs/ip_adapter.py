@@ -91,6 +91,18 @@ class IPAdapter_InvokeAI_Config_Base(IPAdapter_Config_Base):
                 raise NotAMatchError(f"unrecognized cross attention dimension {cross_attention_dim}")
 
 
+class IPAdapter_InvokeAI_SD1_Config(IPAdapter_InvokeAI_Config_Base, Config_Base):
+    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
+
+
+class IPAdapter_InvokeAI_SD2_Config(IPAdapter_InvokeAI_Config_Base, Config_Base):
+    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
+
+
+class IPAdapter_InvokeAI_SDXL_Config(IPAdapter_InvokeAI_Config_Base, Config_Base):
+    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
+
+
 class IPAdapter_Checkpoint_Config_Base(IPAdapter_Config_Base):
     """Model config for IP Adapter checkpoint format models."""
 
@@ -152,3 +164,17 @@ class IPAdapter_Checkpoint_Config_Base(IPAdapter_Config_Base):
                 raise NotAMatchError(f"unrecognized cross attention dimension {cross_attention_dim}")
 
 
+class IPAdapter_Checkpoint_SD1_Config(IPAdapter_Checkpoint_Config_Base, Config_Base):
+    base: Literal[BaseModelType.StableDiffusion1] = Field(default=BaseModelType.StableDiffusion1)
+
+
+class IPAdapter_Checkpoint_SD2_Config(IPAdapter_Checkpoint_Config_Base, Config_Base):
+    base: Literal[BaseModelType.StableDiffusion2] = Field(default=BaseModelType.StableDiffusion2)
+
+
+class IPAdapter_Checkpoint_SDXL_Config(IPAdapter_Checkpoint_Config_Base, Config_Base):
+    base: Literal[BaseModelType.StableDiffusionXL] = Field(default=BaseModelType.StableDiffusionXL)
+
+
+class IPAdapter_Checkpoint_FLUX_Config(IPAdapter_Checkpoint_Config_Base, Config_Base):
+    base: Literal[BaseModelType.Flux] = Field(default=BaseModelType.Flux)
