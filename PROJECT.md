@@ -5,13 +5,19 @@ This document contains project-level information, guidelines, and templates for 
 ## Active Migration Work
 
 - Branch: `qt6-migration`
-- Focus: Qt6 frontend migration
+- Focus: Qt6 frontend migration + architecture cleanup
 - Local GUI mode: PySide6-based desktop picker with "Local" and "Server" options
 - macOS/darwin support: removed from classifiers, dependency markers, uv environments, backend checks, docs, and code comments
 - Minimum platform versions: Windows 11+, Ubuntu 24.04+, Arch Linux rolling
 - Python versions: 3.13 stable; 3.14/3.15 marked WIP pending Qt6 validation
-- Key dependencies bumped: `onnx>=1.23.0`, `numpy` unpinned for 3.14 compatibility
-- Key new dependency: `PySide6` added for local GUI mode
+- Key dependency changes: `onnx>=1.23.0`, `PySide6` added, `numpy` unpinned, `torch>=2.14.0,<3.0`
+- ROCm support restored at 10.0; Intel XPU support retained
+- Architecture cleanup in progress: removing FLUX, SD, and SDXL backend trees and dead imports to get the browser-based server path building and runnable again
+
+## Current Build Status
+
+- Editable install succeeds on Windows 11 + Python 3.14
+- Server startup path is blocked by remaining FLUX/SD/SDXL import references in config/loader files; those are being cleaned up now
 
 ## Pull Request Template
 

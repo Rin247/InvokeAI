@@ -6,10 +6,6 @@ from typing import (
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Any
 
-from invokeai.backend.flux.controlnet.state_dict_utils import (
-    is_state_dict_instantx_controlnet,
-    is_state_dict_xlabs_controlnet,
-)
 from invokeai.backend.model_manager.configs.base import Checkpoint_Config_Base, Config_Base, Diffusers_Config_Base
 from invokeai.backend.model_manager.configs.identification_utils import (
     NotAMatchError,

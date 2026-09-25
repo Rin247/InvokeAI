@@ -38,7 +38,7 @@ Invoke features an organized gallery system for easily storing, accessing, and r
 - ERNIE-Image-Turbo
 - Wan 2.2 (5B / 12B)
 
-> **Note:** SD1.x, SD2.x, SDXL, FLUX.1, FLUX.2, SD3.5, and related variants have been removed from this fork to focus on maintained model families. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
+> **Note:** This fork focuses on maintained model families. SD1.x, SD2.x, SDXL, FLUX.1, FLUX.2, SD3.5, and related variants are being removed from this codebase. If you need those architectures, use the upstream `invoke-ai/InvokeAI` release line.
 
 ### Platform Support
 - Windows 11+

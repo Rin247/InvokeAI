@@ -32,5 +32,6 @@ Current primary work is on the `qt6-migration` branch.
 - macOS/darwin support has been removed
 - Minimum platform versions: Windows 11+, Ubuntu 24.04+, Arch Linux rolling
 - Python: 3.13 stable; 3.14/3.15 are WIP pending Qt6 validation
-- Key dependency changes: `onnx>=1.23.0`, `PySide6` added, `numpy` unpinned for 3.14 compatibility
-- Apple/macOS references have been removed from docs, classifiers, dependency markers, code comments, and backend checks
+- Key dependency changes: `onnx>=1.23.0`, `PySide6` added, `numpy` unpinned, `torch>=2.14.0,<3.0`
+- ROCm 10.0 and Intel XPU support are present in `pyproject.toml`
+- FLUX/SD/SDXL backend trees have been removed; remaining architecture-specific imports are being cleaned up to restore server startup
