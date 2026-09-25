@@ -137,8 +137,8 @@ dependencies = [
 # built for ROCm 7.14; aarch64 falls back to the PyPI CPU wheels so the extra's conflict-universe
 # always contains a torch.
 "rocm" = [
-  "torch==2.14.0+rocm7.14; sys_platform == 'linux' and platform_machine != 'aarch64'",
-  "torchvision==0.29.0+rocm7.14; sys_platform == 'linux' and platform_machine != 'aarch64'",
+  "torch==2.14.0+rocm10.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
+  "torchvision==0.29.0+rocm10.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
   "triton-rocm==3.8.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
   "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
   "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
@@ -254,7 +254,7 @@ explicit = true
 
 [[tool.uv.index]]
 name = "torch-rocm"
-url = "https://download.pytorch.org/whl/rocm7.14"
+url = "https://download.pytorch.org/whl/rocm10.0"
 explicit = true
 
 [project.scripts]
