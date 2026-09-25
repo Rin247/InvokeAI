@@ -65,8 +65,6 @@ def test_required_matrix_covers_cpu_cuda_and_rocm():
     assert ("linux", "cpu") in REQUIRED_ENTRIES
     assert ("win32", "cuda") in REQUIRED_ENTRIES
     assert ("win32", "cpu") in REQUIRED_ENTRIES
-    # macOS uses MPS, which has no dedicated torch index.
-    assert check_pins.REQUIRED_BACKENDS["darwin"] == set()
 
 
 def test_repo_pins_are_consistent(repo_copy: Path):

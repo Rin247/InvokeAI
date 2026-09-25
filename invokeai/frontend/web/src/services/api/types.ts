@@ -220,6 +220,18 @@ export type AnyModelConfig = InternalAnyModelConfig;
 export type AnyModelConfigWithExternal = AnyModelConfig | ExternalApiModelConfig;
 export type MainOrExternalModelConfig = MainModelConfig | ExternalApiModelConfig;
 
+export type AnyFLUXModelConfig = Extract<
+  InternalAnyModelConfig,
+  { type: 'main'; base: 'flux' | 'flux2' }
+>;
+export type FLUXKontextModelConfig = Extract<InternalAnyModelConfig, { type: 'main'; base: 'flux' }>;
+export type FLUXReduxModelConfig = Extract<InternalAnyModelConfig, { type: 'flux_redux' }>;
+export type FLUXFillMainModelModelConfig = Extract<
+  InternalAnyModelConfig,
+  { type: 'main'; base: 'flux'; variant: 'dev_fill' }
+>;
+export type RefinerMainModelModelConfig = Extract<InternalAnyModelConfig, { type: 'main'; base: 'sdxl-refiner' }>;
+
 /**
  * Checks if a list of submodels contains any that match a given variant or type
  * @param submodels The list of submodels to check
@@ -480,6 +492,42 @@ export const isUnknownModelConfig = (config: AnyModelConfig): config is UnknownM
 
 export const isNonRefinerMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
   return config.type === 'main';
+};
+
+export const isFluxKontextModelConfig = (config: AnyModelConfig): config is FLUXKontextModelConfig => {
+  return config.type === 'main' && config.base === 'flux';
+};
+
+export const isFluxReduxModelConfig = (config: AnyModelConfig): config is FLUXReduxModelConfig => {
+  return config.type === 'flux_redux';
+};
+
+export const isFlux1VAEModelConfig = (config: AnyModelConfig): config is VAEModelConfig => {
+  return config.type === 'vae' && config.base === 'flux';
+};
+
+export const isFlux2VAEModelConfig = (config: AnyModelConfig): config is VAEModelConfig => {
+  return config.type === 'vae' && config.base === 'flux2';
+};
+
+export const isNonFluxVAEModelConfig = (config: AnyModelConfig): config is VAEModelConfig => {
+  return config.type === 'vae' && config.base !== 'flux' && config.base !== 'flux2';
+};
+
+export const isRefinerMainModelModelConfig = (config: AnyModelConfig): config is RefinerMainModelModelConfig => {
+  return config.type === 'main' && config.base === 'sdxl-refiner';
+};
+
+export const isFluxFillMainModelModelConfig = (config: AnyModelConfig): config is FLUXFillMainModelModelConfig => {
+  return config.type === 'main' && config.base === 'flux' && config.variant === 'dev_fill';
+};
+
+export const isFlux2DiffusersMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
+  return config.type === 'main' && config.base === 'flux2' && config.format === 'diffusers';
+};
+
+export const isFlux2DevDiffusersMainModelConfig = (config: AnyModelConfig): config is MainModelConfig => {
+  return config.type === 'main' && config.base === 'flux2' && config.format === 'diffusers' && config.variant === 'dev';
 };
 
 export const isMainOrExternalModelConfig = (

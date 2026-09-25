@@ -2036,9 +2036,8 @@ class ModelCache:
                 # leave the caller an error it can act on. Devices with their own VRAM keep the
                 # try-anyway behaviour, where the failure is a catchable allocator error.
                 #
-                # MPS shares memory the same way and would benefit from the same guard, but macOS
-                # degrades differently (compressed memory, a large default swap) and changing Mac
-                # behaviour is out of scope here.
+                # MPS shares memory the same way and would benefit from the same guard, but MPS
+                # behavior varies across platforms and changing that behavior is out of scope here.
                 #
                 # The comparison must be against the bytes still to be moved, not the model's
                 # total: a resident model's weights already occupy the same DRAM that vram_available

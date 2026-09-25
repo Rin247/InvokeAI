@@ -209,7 +209,7 @@ class TestStreamedDecoderIsBounded:
         next(frames)
         # Sleep longer than the inactivity timeout. This time belongs to the consumer and
         # must not expire the decoder, while the two-second window avoids treating normal
-        # process/FFmpeg scheduling latency on macOS CI as a decoder hang.
+        # process/FFmpeg scheduling latency as a decoder hang.
         time.sleep(2.2)
         assert next(frames).shape == (32, 48, 3)
 

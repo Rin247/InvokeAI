@@ -56,7 +56,7 @@ def supported_python_versions(requires_python: str) -> list[str]:
 def has_aarch64_wheel(package: dict[str, Any], python_version: str) -> bool:
     """Whether `package` ships a linux/aarch64 wheel usable by CPython `python_version`.
 
-    Only linux aarch64 counts -- macOS arm64 wheels (`macosx_11_0_arm64`) are a different platform.
+    Only linux aarch64 counts -- other arm64 wheels (e.g. `macosx_11_0_arm64`) are a different platform.
     """
     minor = int(python_version.split(".")[1])
     accepted = {f"cp3{minor}", "py3", f"py3{minor}"}

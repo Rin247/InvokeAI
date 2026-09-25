@@ -872,7 +872,7 @@ def get_pc_name_max(directory: str) -> int:
         try:
             return os.pathconf(directory, "PC_NAME_MAX")
         except OSError:
-            # macOS w/ external drives raise OSError
+            # external drives may raise OSError
             pass
     return 260  # hardcoded for windows
 

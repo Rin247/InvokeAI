@@ -18,7 +18,7 @@ consequence downstream is an image that differs slightly: ~43 dB PSNR end-to-end
 indistinguishable but not reproducible against an unoptimized decode.
 
 The CPU column is *not* a portable guarantee, and this module originally claimed it was. Asserting
-`torch.equal` there passed on x86-64/MKL and failed on macOS/Accelerate in CI: splitting a GEMM along
+`torch.equal` there passed on x86-64/MKL and failed on Accelerate in CI: splitting a GEMM along
 its row dimension can select a micro-kernel with different K-blocking, so bit-exactness is a property
 of the BLAS, not of the chunking. What is portable is that chunking only *reassociates* work, so the
 contract here is a distance bound on both paths - tight and scaled to the signal on fp32, wider and
@@ -51,7 +51,7 @@ _BF16_ABSOLUTE_TOLERANCE = 5e-2
 _BF16_MEAN_ABSOLUTE_TOLERANCE = 1e-3
 
 # The CPU bound, relative to the signal. This started out as `torch.equal`, which held on x86-64 with
-# MKL and failed on macOS/Accelerate in CI: splitting a GEMM along M can select a different
+# MKL and failed on Accelerate in CI: splitting a GEMM along M can select a different
 # micro-kernel whose K-blocking differs, so even fp32 is only reassociation-close, not bit-equal.
 #
 # Calibration, measured at these dimensions (signal ~5.7, so one fp32 ULP is ~6.8e-07 absolute):
@@ -62,7 +62,7 @@ _BF16_MEAN_ABSOLUTE_TOLERANCE = 1e-3
 # 1e-5 relative is ~84 ULP: comfortably above whatever reassociation any BLAS produces, and four
 # orders of magnitude below a structurally broken chunk, which lands at O(signal). What it does *not*
 # do is catch a uniform scaling error smaller than ~2e-06 relative - that band is indistinguishable
-# from legitimate backend reassociation, which is the lesson macOS taught here, so no portable test
+# from legitimate backend reassociation, which is the lesson here, so no portable test
 # can claim it. Structural mistakes (wrong slice, dropped row, unassembled output) are the bug class
 # this guards, and they are nowhere near that band.
 _CPU_RELATIVE_TOLERANCE = 1e-5

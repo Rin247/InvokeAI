@@ -15,14 +15,13 @@ classifiers = [
   'Development Status :: 5 - Production/Stable',
   'Environment :: GPU',
   'Environment :: GPU :: NVIDIA CUDA',
-  'Environment :: MacOS X',
   'Intended Audience :: End Users/Desktop',
   'Intended Audience :: Developers',
   'License :: OSI Approved :: Apache Software License',
   'Operating System :: POSIX :: Linux',
-  'Operating System :: MacOS',
   'Operating System :: Microsoft :: Windows',
   'Programming Language :: Python :: 3 :: Only',
+  'Programming Language :: Python :: 3.13',
   'Programming Language :: Python :: 3.14',
   'Programming Language :: Python :: 3.15',
   'Topic :: Artistic Software',
@@ -35,7 +34,7 @@ classifiers = [
 dependencies = [
   # Core generation dependencies, pinned for reproducible builds.
   "accelerate",
-  "bitsandbytes; sys_platform!='darwin'",
+  "bitsandbytes",
   "compel>=2.4.0,<3",
   # Qwen-Image 2.1 landed after diffusers 0.40. Pin the merge commit until 0.41 is released.
   "diffusers[torch] @ git+https://github.com/huggingface/diffusers.git@6256aa7",
@@ -44,8 +43,8 @@ dependencies = [
   "mistral-common>=1.5.4,<2",             # canonical Tekken tokenizer for FLUX.2 [dev] Mistral encoder; the
                                           # loader depends on private surface (Tekkenizer internals) that
                                           # moves across majors, so cap below 2.x (validated against 1.11.6)
-  "numpy<2.0.0",
-  "onnx==1.16.2",
+  "numpy",
+  "onnx>=1.23.0",
   "onnxruntime==1.24.4",
   "opencv-contrib-python",
   "imageio[ffmpeg]>=2.37",                 # video encode (for Wan 2.2 T2V/I2V output); encode behavior (macro_block_size) is version-sensitive
@@ -55,9 +54,7 @@ dependencies = [
   "spandrel",
   # Loosely pinned, will respect requirement of `diffusers[torch]`. Split by platform: linux/win allow
 # Core generation dependencies, pinned for reproducible builds.
-  "torch>=2.14.0,<3.0; sys_platform != 'darwin'",
-  "torch>=2.14.0,<2.15.0; sys_platform == 'darwin'",
-  "torchsde",                             # diffusers needs this for SDE solvers, but it is not an explicit dep of diffusers
+  "torch>=2.14.0,<3.0",
   "torchvision",
   "transformers>=5.17,<5.18",
 
@@ -106,15 +103,14 @@ dependencies = [
   "comfy-kitchen==0.2.35; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 "xformers" = [
-  # Core generation dependencies, pinned for reproducible builds.
-  "xformers>=0.0.28.post1; sys_platform!='darwin'",
+  "xformers>=0.0.28.post1",
   # torch 2.4+cu carries its own triton dependency
 ]
 
 # The +cpu/+cu134 pins live on PyTorch's WHL indexes. torchvision has no
 # linux_aarch64 wheels there (torch does for +cpu/+cu134), so on linux_aarch64 these
 # pins are unsatisfiable and are gated behind a marker that excludes only that
-# platform; every other platform (Windows, macOS, Linux x86_64) is unaffected. On
+# platform; every other platform (Windows, Linux x86_64) is unaffected. On
 # linux_aarch64 the base `torch` / `torchvision` declarations resolve from PyPI
 # instead (CPU-only wheels — an aarch64 install requesting `cuda` gets CPU torch).
 # Since torch+cu134 aarch64 wheels DO exist on the index, real CUDA-on-aarch64
@@ -149,12 +145,11 @@ dependencies = [
   # XPU triton (for torch.compile); the WHL index ships linux-x86_64 and win_amd64 wheels.
   # Renamed from pytorch-triton-xpu to triton-xpu upstream.
   "triton-xpu==3.8.0; (sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'",
-  # macOS / linux_aarch64 have no +xpu wheels: fall back to base torch so the extra's
+  # linux_aarch64 has no +xpu wheels: fall back to base torch so the extra's
   # conflict-universe always contains a torch. See note under "cpu". These stay on 2.14.0 to
-  # match the other extras and the project's `torch<2.15.0` constraint on darwin -- only the
-  # +xpu wheels above move.
-  "torch==2.14.0; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine == 'aarch64')",
-  "torchvision==0.29.0; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine == 'aarch64')",
+  # match the other extras and the project's `torch<3.0` constraint.
+  "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
 
 "onnx" = ["onnxruntime"]
@@ -183,10 +178,10 @@ dependencies = [
 override-dependencies = ["opencv-python; sys_platform=='never'"]
 conflicts = [[{ extra = "cpu" }, { extra = "cuda" }, { extra = "xpu" }]]
 index-strategy = "unsafe-best-match"
-# Restrict resolution to the platforms we support: x86_64/aarch64 Linux, Windows,
-# and macOS. (The PyTorch WHL-index pins are x86_64-only; on aarch64
+# Restrict resolution to the platforms we support: x86_64/aarch64 Linux and Windows.
+# (The PyTorch WHL-index pins are x86_64-only; on aarch64
 # Linux torch/torchvision fall back to PyPI via the markers below.)
-environments = ["sys_platform == 'win32' or sys_platform == 'darwin' or (sys_platform == 'linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64'))"]
+environments = ["sys_platform == 'win32' or (sys_platform == 'linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64'))"]
 
 # compel, could you please not pull in all of Jupyter. (compel declares `notebook>=6.5.7` but does not
 # reference IPython/Jupyter anywhere in its code.) Dropping it takes ~65 packages out of the environment.
@@ -204,7 +199,7 @@ exclude-dependencies = ["notebook"]
 # Exclude linux_aarch64 from the PyTorch WHL indexes so that uv resolves torch /
 # torchvision from PyPI on that platform. The indexes DO carry aarch64 torch wheels
 # (+cpu/+cu134), but no aarch64 torchvision wheels, so the pinned pairs cannot
-# resolve there. All other platforms (Windows, macOS, Linux x86_64) are unaffected.
+# resolve there. All other platforms (Windows, Linux x86_64) are unaffected.
 torch = [
   { index = "torch-cpu", extra = "cpu", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-cuda", extra = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },

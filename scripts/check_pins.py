@@ -57,8 +57,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # and that Invoke actually supports needs an entry here, because a missing one
 # degrades silently rather than failing loudly.
 #
-# - darwin is deliberately empty: macOS uses MPS, for which PyTorch publishes no
-#   separate index, so the launcher installs the default PyPI wheels.
 # - win32 has no rocm entry: PyTorch publishes no ROCm wheels for Windows, and
 #   the `rocm` extra in pyproject.toml is marked `sys_platform == 'linux'`.
 # - xpu is on both win32 and linux: PyTorch's XPU index publishes win_amd64 and
@@ -66,7 +64,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_BACKENDS: dict[str, set[str]] = {
     "win32": {"cpu", "cuda", "xpu"},
     "linux": {"cpu", "cuda", "rocm", "xpu"},
-    "darwin": set(),
 }
 
 # The version the launcher is told to build the venv with, which must be exactly

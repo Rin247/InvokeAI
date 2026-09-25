@@ -13,7 +13,7 @@ from tests.backend.quantization.gguf.test_ggml_tensor import quantize_tensor
 try:
     from invokeai.backend.quantization.bnb_llm_int8 import InvokeLinear8bitLt, quantize_model_llm_int8
 except ImportError:
-    # This is expected to fail on MacOS
+    # This is expected to fail on systems without bitsandbytes
     pass
 
 cuda_and_mps = pytest.mark.parametrize(
@@ -57,7 +57,7 @@ def model(request: pytest.FixtureRequest) -> torch.nn.Module:
 @torch.no_grad()
 def test_torch_module_autocast_linear_layer(device: torch.device, model: torch.nn.Module):
     # Skip this test with MPS on GitHub Actions. It fails but I haven't taken the tie to figure out why. It passes
-    # locally on MacOS.
+    # locally on systems with MPS support.
     if os.environ.get("GITHUB_ACTIONS") == "true" and device.type == "mps":
         pytest.skip("This test is flaky on GitHub Actions")
 

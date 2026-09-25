@@ -44,7 +44,7 @@ AUTOCAST_MODULE_TYPE_MAPPING: dict[type[torch.nn.Module], type[torch.nn.Module]]
 }
 
 try:
-    # These dependencies are not expected to be present on MacOS.
+    # These dependencies are optional and may not be present on all platforms.
     from invokeai.backend.model_manager.load.model_cache.torch_module_autocast.custom_modules.custom_invoke_linear_8_bit_lt import (
         CustomInvokeLinear8bitLt,
     )

@@ -36,28 +36,28 @@ The following commands vary depending on the version of Invoke being installed a
 
   2. Create a directory for your installation, typically in your home directory (e.g. `~/invokeai` or `$Home/invokeai`):
 
-      <Tabs syncKey="operatingSystem">
-        <TabItem label="Windows" icon="seti:windows">
-          ```ps
-          mkdir $Home/invokeai
-          cd $Home/invokeai
-          ```
-        </TabItem>
-        <TabItem label="Linux/MacOS" icon="linux">
-          ```bash
-          mkdir ~/invokeai
-          cd ~/invokeai
-          ```
-        </TabItem>
-      </Tabs>
+       <Tabs syncKey="operatingSystem">
+         <TabItem label="Windows" icon="seti:windows">
+           ```ps
+           mkdir $Home/invokeai
+           cd $Home/invokeai
+           ```
+         </TabItem>
+         <TabItem label="Linux" icon="linux">
+           ```bash
+           mkdir ~/invokeai
+           cd ~/invokeai
+           ```
+         </TabItem>
+       </Tabs>
 
-  3. Create a virtual environment in that directory:
+   3. Create a virtual environment in that directory:
 
-      ```sh
-      uv venv --relocatable --prompt invoke --python 3.12 --python-preference only-managed .venv
-      ```
+       ```sh
+       uv venv --relocatable --prompt invoke --python 3.13 --python-preference only-managed .venv
+       ```
 
-      This command creates a portable virtual environment at `.venv` complete with a portable python 3.12. It doesn't matter if your system has no python installed, or has a different version - `uv` will handle everything.
+       This command creates a portable virtual environment at `.venv` complete with a portable python 3.13. It doesn't matter if your system has no python installed, or has a different version - `uv` will handle everything.
 
   4. Activate the virtual environment:
 
@@ -67,7 +67,7 @@ The following commands vary depending on the version of Invoke being installed a
           .venv\Scripts\activate
           ```
         </TabItem>
-        <TabItem label="Linux/MacOS" icon="linux">
+        <TabItem label="Linux" icon="linux">
           ```bash
           source .venv/bin/activate
           ```
@@ -117,7 +117,7 @@ The following commands vary depending on the version of Invoke being installed a
           </Tabs>
         </TabItem>
 
-        <TabItem label="Linux/MacOS" icon="linux">
+        <TabItem label="Linux" icon="linux">
           <Tabs syncKey="unixGpuType">
             <TabItem label="Linux + Nvidia GPU">
               Use:
@@ -143,7 +143,7 @@ The following commands vary depending on the version of Invoke being installed a
                 break generation on ROCm ([#9410](https://github.com/invoke-ai/InvokeAI/issues/9410)).
                 Until that issue is closed, also constrain torch when installing:
                 ```sh
-                uv pip install <PACKAGE_SPECIFIER>==<VERSION> "torch<2.12" --python 3.12 --python-preference only-managed --torch-backend=rocm7.1 --force-reinstall
+                uv pip install <PACKAGE_SPECIFIER>==<VERSION> "torch<2.12" --python 3.14 --python-preference only-managed --torch-backend=rocm7.1 --force-reinstall
                 ```
                 This workaround applies to the reported ROCm case only.
               :::
@@ -166,12 +166,12 @@ The following commands vary depending on the version of Invoke being installed a
       <Tabs synckKey="torchBackend">
         <TabItem label="No torch backend">
           ```sh
-          uv pip install <PACKAGE_SPECIFIER>==<VERSION> --python 3.12 --python-preference only-managed --force-reinstall
+          uv pip install <PACKAGE_SPECIFIER>==<VERSION> --python 3.14 --python-preference only-managed --force-reinstall
           ```
         </TabItem>
         <TabItem label="With torch backend">
           ```sh
-          uv pip install <PACKAGE_SPECIFIER>==<VERSION> --python 3.12 --python-preference only-managed --torch-backend=<VERSION> --force-reinstall
+          uv pip install <PACKAGE_SPECIFIER>==<VERSION> --python 3.14 --python-preference only-managed --torch-backend=<VERSION> --force-reinstall
           ```
         </TabItem>
 
@@ -186,7 +186,7 @@ The following commands vary depending on the version of Invoke being installed a
           .venv\Scripts\activate
           ```
         </TabItem>
-        <TabItem label="Linux/MacOS" icon="linux">
+        <TabItem label="Linux" icon="linux">
           ```bash
           deactivate && source .venv/bin/activate
           ```
@@ -201,7 +201,7 @@ The following commands vary depending on the version of Invoke being installed a
           invokeai-web --root ~/invokeai
           ```
         </TabItem>
-        <TabItem label="Linux/MacOS" icon="linux">
+        <TabItem label="Linux" icon="linux">
           ```bash
           invokeai-web --root ~/invokeai
           ```
