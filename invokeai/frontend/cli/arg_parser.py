@@ -10,9 +10,12 @@ _root_help = r"""Path to the runtime root directory. If omitted, the app will se
 
 _config_file_help = r"""Path to the invokeai.yaml configuration file. If omitted, the app will search for the file in the root directory."""
 
+_ui_mode_help = r"""UI mode. `local` launches the local GUI picker and opens the web UI in a browser; `server` starts the backend without opening a browser. Valid values: `local`, `server`"""
+
 _parser = ArgumentParser(description="Invoke Studio", formatter_class=RawTextHelpFormatter)
 _parser.add_argument("--root", type=str, help=_root_help)
 _parser.add_argument("--config", dest="config_file", type=str, help=_config_file_help)
+_parser.add_argument("--ui-mode", dest="ui_mode", type=str, choices=["local", "server"], help=_ui_mode_help)
 _parser.add_argument("--version", action="version", version=__version__, help="Displays the version and exits.")
 
 

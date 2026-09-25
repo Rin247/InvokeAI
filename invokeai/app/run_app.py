@@ -30,9 +30,11 @@ def get_app():
 def run_app() -> None:
     """The main entrypoint for the app."""
     import asyncio
+    import os
     import sys
     import threading
     import traceback
+    import webbrowser
 
     from invokeai.frontend.cli.arg_parser import InvokeAIArgs
 
@@ -46,8 +48,32 @@ def run_app() -> None:
     from invokeai.app.util.torch_cuda_allocator import configure_torch_cuda_allocator
     from invokeai.backend.util.logging import InvokeAILogger
 
+    # CLI overrides for config. These must be set before get_config() is called.
+    if InvokeAIArgs.args and getattr(InvokeAIArgs.args, "ui_mode", None):
+        os.environ["INVOKEAI_UI_MODE"] = InvokeAIArgs.args.ui_mode
+
     # Load config.
     app_config = get_config()
+
+    logger = InvokeAILogger.get_logger(config=app_config)
+
+    # If ui_mode is not explicitly set, show the local GUI picker.
+    if not getattr(app_config, "ui_mode", None):
+        try:
+            from invokeai.app.gui.launcher import ask_ui_mode
+        except ImportError as exc:
+            raise ImportError(
+                "PySide6 is required for the local GUI picker. "
+                "Install it with: pip install PySide6"
+            ) from exc
+        picked = ask_ui_mode()
+        if picked is None:
+            logger.info("No UI mode selected; exiting.")
+            return
+        os.environ["INVOKEAI_UI_MODE"] = picked
+        app_config = get_config()
+
+    is_local = getattr(app_config, "ui_mode", "server") == "local"
 
     logger = InvokeAILogger.get_logger(config=app_config)
 
@@ -138,6 +164,11 @@ def run_app() -> None:
     uvicorn_logger.handlers.clear()
     for hdlr in logger.handlers:
         uvicorn_logger.addHandler(hdlr)
+
+    if is_local:
+        url = f"http://{app_config.host}:{app_config.port}/"
+        threading.Thread(target=lambda: (__import__("time").sleep(0.5), webbrowser.open(url)), daemon=True).start()
+        logger.info(f"Opening web UI at {url}")
 
     try:
         loop.run_until_complete(server.serve())

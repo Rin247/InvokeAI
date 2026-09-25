@@ -95,6 +95,7 @@ dependencies = [
   "python-multipart",
   "requests",
   "semver~=3.0.1",
+  "PySide6",
   "PyWavelets",
 ]
 
