@@ -53,7 +53,8 @@ dependencies = [
   "sentencepiece>=0.2.2",                 # 0.2.0 fails to build on Python 3.14+; 0.2.1 coredumps windows when loading t5 tokenizer
   "spandrel",
   # Loosely pinned, will respect requirement of `diffusers[torch]`. Split by platform: linux/win allow
-# Core generation dependencies, pinned for reproducible builds.
+  # >=2.10 so the rocm extra can use torch 2.10.0+rocm7.14, while Windows/Linux CUDA stays on 2.14.x — the
+  # rocm extra pins an exact version, and the manual docs carry the ROCm-specific caveat.
   "torch>=2.14.0,<3.0",
   "torchvision",
   "transformers>=5.17,<5.18",
@@ -108,8 +109,8 @@ dependencies = [
   # torch 2.4+cu carries its own triton dependency
 ]
 
-# The +cpu/+cu134 pins live on PyTorch's WHL indexes. torchvision has no
-# linux_aarch64 wheels there (torch does for +cpu/+cu134), so on linux_aarch64 these
+# The +cpu/+cu134/+rocm7.14 pins live on PyTorch's WHL indexes. torchvision has no
+# linux_aarch64 wheels there (torch does for +cpu/+cu134/+rocm7.14), so on linux_aarch64 these
 # pins are unsatisfiable and are gated behind a marker that excludes only that
 # platform; every other platform (Windows, Linux x86_64) is unaffected. On
 # linux_aarch64 the base `torch` / `torchvision` declarations resolve from PyPI
@@ -129,6 +130,16 @@ dependencies = [
   "torch==2.14.0+cu134; sys_platform != 'linux' or platform_machine != 'aarch64'",
   "torchvision==0.29.0+cu134; sys_platform != 'linux' or platform_machine != 'aarch64'",
   # linux_aarch64 fallback, see note under "cpu"
+  "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
+# ROCm wheels for AMD GPUs are Linux x86_64 only. The ROCm index carries torch/torchvision
+# built for ROCm 7.14; aarch64 falls back to the PyPI CPU wheels so the extra's conflict-universe
+# always contains a torch.
+"rocm" = [
+  "torch==2.14.0+rocm7.14; sys_platform == 'linux' and platform_machine != 'aarch64'",
+  "torchvision==0.29.0+rocm7.14; sys_platform == 'linux' and platform_machine != 'aarch64'",
+  "triton-rocm==3.8.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
   "torch==2.14.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
   "torchvision==0.29.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
 ]
@@ -177,7 +188,7 @@ dependencies = [
 # Prevent opencv-python from ever being chosen during dependency resolution.
 # This prevents conflicts with opencv-contrib-python, which Invoke requires.
 override-dependencies = ["opencv-python; sys_platform=='never'"]
-conflicts = [[{ extra = "cpu" }, { extra = "cuda" }, { extra = "xpu" }]]
+conflicts = [[{ extra = "cpu" }, { extra = "cuda" }, { extra = "rocm" }, { extra = "xpu" }]]
 index-strategy = "unsafe-best-match"
 # Restrict resolution to the platforms we support: x86_64/aarch64 Linux and Windows.
 # (The PyTorch WHL-index pins are x86_64-only; on aarch64
@@ -205,16 +216,21 @@ torch = [
   { index = "torch-cpu", extra = "cpu", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-cuda", extra = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-xpu", extra = "xpu", marker = "(sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'" },
+  { index = "torch-rocm", extra = "rocm", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
   { index = "pypi", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 torchvision = [
   { index = "torch-cpu", extra = "cpu", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-cuda", extra = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
   { index = "torch-xpu", extra = "xpu", marker = "(sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'" },
+  { index = "torch-rocm", extra = "rocm", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
   { index = "pypi", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 triton-xpu = [
   { index = "torch-xpu", marker = "(sys_platform == 'linux' and platform_machine == 'x86_64') or sys_platform == 'win32'" },
+]
+triton-rocm = [
+  { index = "torch-rocm", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
 ]
 
 [[tool.uv.index]]
@@ -234,6 +250,11 @@ explicit = true
 [[tool.uv.index]]
 name = "torch-xpu"
 url = "https://download.pytorch.org/whl/xpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "torch-rocm"
+url = "https://download.pytorch.org/whl/rocm7.14"
 explicit = true
 
 [project.scripts]
