@@ -1,6 +1,17 @@
 # Project Documentation
 
-This document contains project-level information, guidelines, and templates.
+This document contains project-level information, guidelines, and templates for the InvokeAI `qt6-migration` branch.
+
+## Active Migration Work
+
+- Branch: `qt6-migration`
+- Focus: Qt6 frontend migration
+- Local GUI mode: PySide6-based desktop picker with "Local" and "Server" options
+- macOS/darwin support: removed from classifiers, dependency markers, uv environments, backend checks, docs, and code comments
+- Minimum platform versions: Windows 11+, Ubuntu 24.04+, Arch Linux rolling
+- Python versions: 3.13 stable; 3.14/3.15 marked WIP pending Qt6 validation
+- Key dependencies bumped: `onnx>=1.23.0`, `numpy` unpinned for 3.14 compatibility
+- Key new dependency: `PySide6` added for local GUI mode
 
 ## Pull Request Template
 
